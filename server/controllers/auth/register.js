@@ -1,32 +1,7 @@
-const User = require("../../models/User");
-const { ROLES } = require("../../constants");
-const { asyncWrapper, sendSuccess, throwError } = require("../../utils");
+const { asyncWrapper, sendSuccess } = require("../../utils");
+const { registerUser } = require("../../services/auth");
 
 exports.register = asyncWrapper(async (req, res) => {
-  let { name, email, password, mobile, role } = req.body;
-  role = role || ROLES.USER;
-  const user = await User.findOne({
-    email: email,
-    role: role,
-    isDeleted: false,
-  });
-  if (user) {
-    throwError(400, "User with this email or phone number already exists");
-  }
-  const userData = {
-    name,
-    password,
-    email,
-    mobile,
-    role,
-  };
-  const newUser = await User.create(userData);
-  const token = newUser.getSignedJwtToken({
-    expiresIn: "7d",
-    secret: process.env.JWT_SECRET,
-  });
-  return sendSuccess(res, 201, "User registered successfully", {
-    user: newUser,
-    token,
-  });
+  const { user, token } = await registerUser(req.body);
+  return sendSuccess(res, 201, "User registered successfully", { user, token });
 });

@@ -24,5 +24,5 @@ app.use(errorHandler);
 
 mongoDb();
 app.listen(port, () =>
-  console.log(`NVS-Rice Mart Server running on http://localhost:${port}`)
+  console.log(`✅ NVS-Rice Mart Server running on http://localhost:${port}`)
 );
