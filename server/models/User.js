@@ -39,6 +39,8 @@ const userSchema = new mongoose.Schema(
     currentLocation: { lat: Number, lng: Number },
     fcmToken: { type: String },
     image: { type: String },
+    loginType: { type: String },
+    otp: { code: String, expiresAt: Date },
     // uniqueId: { type: String, unique: true },
     currentScreen: { type: String, default: "LANDING_SCREEN" },
     isEmailVerified: { type: Boolean, default: false },
