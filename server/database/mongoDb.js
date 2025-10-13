@@ -5,8 +5,8 @@ dotenv.config();
 exports.mongoDb = async () => {
   try {
     await mongoose.connect(process.env.MONGO_URL);
-    console.log("NVS-Rice Mart MongoDb database connection established");
+    console.log("✅ NVS-Rice Mart MongoDb connection established");
   } catch (error) {
-    console.log("Error connecting to mongoDB:", error.message);
+    console.log("❌ Error connecting to mongoDB:", error.message);
   }
 };

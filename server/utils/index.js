@@ -2,6 +2,8 @@ const asyncWrapper = require("./asyncWrapper");
 const { throwError, CustomError } = require("./CustomError");
 const { sendSuccess, sendError } = require("./response");
 const { pagination } = require("./pagination");
+const { generateOTP } = require("./generateOTP");
+const { validObjectId } = require("./validateObjectId");
 
 module.exports = {
   CustomError,
@@ -10,4 +12,6 @@ module.exports = {
   sendError,
   throwError,
   pagination,
+  generateOTP,
+  validObjectId,
 };
