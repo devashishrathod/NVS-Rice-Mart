@@ -17,6 +17,9 @@ app.use(express.json());
 app.use(cors());
 app.use(morgan("dev"));
 app.use("/nvs-rice-mart/", allRoutes);
+app.get("/", async (req, res) => {
+  res.send("Welcome to NVS Rice Mart🚀");
+});
 app.use((req, res, next) => {
   throwError(404, "Invalid API");
 });
