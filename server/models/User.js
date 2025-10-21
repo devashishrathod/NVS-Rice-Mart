@@ -20,7 +20,7 @@ const userSchema = new mongoose.Schema(
       enum: [...Object.values(LOGIN_TYPES)],
       default: LOGIN_TYPES.PASSWORD,
     },
-    password: { type: String },
+    password: { type: String, required: true },
     email: {
       type: String,
       lowercase: true,

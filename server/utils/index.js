@@ -3,7 +3,7 @@ const { throwError, CustomError } = require("./CustomError");
 const { sendSuccess, sendError } = require("./response");
 const { pagination } = require("./pagination");
 const { generateOTP } = require("./generateOTP");
-const { validObjectId } = require("./validateObjectId");
+const { validateObjectId } = require("./validateObjectId");
 
 module.exports = {
   CustomError,
@@ -13,5 +13,5 @@ module.exports = {
   throwError,
   pagination,
   generateOTP,
-  validObjectId,
+  validateObjectId,
 };
