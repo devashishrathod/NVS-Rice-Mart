@@ -18,7 +18,6 @@ exports.loginOrSignInWithMobile = asyncWrapper(async (req, res) => {
     user = User.create({ mobile, role, loginType, password: defaultPassword });
   }
   const otpData = await sendOtpToMobile(mobile);
-  console.log(otpData, "mcnmascmsa");
   return sendSuccess(
     res,
     200,
