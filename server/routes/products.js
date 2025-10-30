@@ -10,7 +10,7 @@ const {
   // deleteProduct,
 } = require("../controllers/products");
 
-router.post("/create", create); // isAdmin,
+router.post("/create", isAdmin, create);
 // router.get("/getAll", verifyJwtToken, getAll);
 // router.get("/get/:id", verifyJwtToken, get);
 // router.put("/update/:id", isAdmin, update);
