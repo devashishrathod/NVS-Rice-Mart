@@ -32,3 +32,34 @@ exports.validateCreateProduct = (data) => {
   });
   return createSchema.validate(data, { abortEarly: false });
 };
+
+exports.validateGetAllProductsQuery = (payload) => {
+  const getAllQuerySchema = Joi.object({
+    page: Joi.number().integer().min(1).optional(),
+    limit: Joi.number().integer().min(1).optional(),
+    search: Joi.string().optional(),
+    name: Joi.string().optional(),
+    brand: Joi.string().optional(),
+    categoryId: objectId().optional(),
+    subCategoryId: objectId().optional(),
+    SKU: Joi.string().optional(),
+    type: Joi.string().valid("grocery", "electronics", "clothing").optional(),
+    price: Joi.number().optional(),
+    minPrice: Joi.number().optional(),
+    maxPrice: Joi.number().optional(),
+    weightInKg: Joi.number().optional(),
+    minWeight: Joi.number().optional(),
+    maxWeight: Joi.number().optional(),
+    stockQuantity: Joi.number().optional(),
+    minStock: Joi.number().optional(),
+    maxStock: Joi.number().optional(),
+    isActive: Joi.alternatives().try(Joi.boolean(), Joi.string()).optional(),
+    fromDate: Joi.date().iso().optional(),
+    toDate: Joi.date().iso().optional(),
+    sortBy: Joi.string()
+      .valid("generalPrice", "createdAt", "stockQuantity", "weightInKg")
+      .optional(),
+    sortOrder: Joi.string().valid("asc", "desc").optional(),
+  });
+  return getAllQuerySchema.validate(payload, { abortEarly: false });
+};
