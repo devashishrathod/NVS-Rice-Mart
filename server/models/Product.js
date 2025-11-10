@@ -1,16 +1,11 @@
 const mongoose = require("mongoose");
 const { PRODUCT_TYPES, DEFAULT_IMAGES } = require("../constants");
-const {
-  categoryField,
-  subCategoryField,
-  locationsField,
-} = require("./validObjectId");
+const { categoryField, subCategoryField } = require("./validObjectId");
 
 const productSchema = new mongoose.Schema(
   {
     categoryId: categoryField,
     subCategoryId: subCategoryField,
-    locationIds: locationsField,
     name: { type: String, required: true, trim: true },
     brand: { type: String, required: true, trim: true },
     generalPrice: { type: Number, required: true },
