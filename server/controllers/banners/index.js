@@ -1,13 +1,13 @@
 const { create } = require("./create");
-// const { getAll } = require("./getAll");
+const { getAll } = require("./getAll");
 const { get } = require("./get");
 // const { update } = require("./update");
-// const { deleteBanner} = require("./deleteProduct");
+const { deleteBanner } = require("./deleteBanner");
 
 module.exports = {
   create,
-  //getAll,
+  getAll,
   get,
   // update,
-  // deleteBanner,
+  deleteBanner,
 };
