@@ -1,7 +1,7 @@
-const Category = require("../../models/Category");
+const Banner = require("../../models/Banner");
 const { pagination } = require("../../utils");
 
-exports.getAllCategories = async (query) => {
+exports.getAllBanners = async (query) => {
   let {
     page,
     limit,
@@ -41,6 +41,7 @@ exports.getAllCategories = async (query) => {
       name: 1,
       description: 1,
       image: 1,
+      video: 1,
       isActive: 1,
       createdAt: 1,
     },
@@ -48,5 +49,5 @@ exports.getAllCategories = async (query) => {
   const sortStage = {};
   sortStage[sortBy] = sortOrder === "asc" ? 1 : -1;
   pipeline.push({ $sort: sortStage });
-  return await pagination(Category, pipeline, page, limit);
+  return await pagination(Banner, pipeline, page, limit);
 };

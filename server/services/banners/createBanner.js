@@ -10,9 +10,12 @@ exports.createBanner = async (video, image, payload) => {
   if (existingBanner) {
     throwError(400, "Banner already exist with this name");
   }
-  if (!video) throwError(422, "video is required");
-  const videoUrl = await uploadVideo(video.tempFilePath);
+  if (!video && !image) {
+    throwError(422, "Either video or image is required");
+  }
+  let videoUrl;
   let imageUrl;
+  if (video) videoUrl = await uploadVideo(video.tempFilePath);
   if (image) imageUrl = await uploadImage(image.tempFilePath);
   return await Banner.create({
     name,
