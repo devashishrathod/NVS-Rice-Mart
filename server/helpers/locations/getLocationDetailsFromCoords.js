@@ -14,6 +14,7 @@ exports.getLocationDetailsFromCoords = async (lat, lon) => {
     if (!data || !data.address) return null;
     const addr = data?.address;
     const city =
+      addr?.city?.toLowerCase() ||
       addr?.city_district?.toLowerCase() ||
       addr?.town?.toLowerCase() ||
       addr?.village?.toLowerCase() ||
