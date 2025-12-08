@@ -2,6 +2,7 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const morgan = require("morgan");
+const ngrok = require("ngrok");
 const fileUpload = require("express-fileupload");
 
 const { mongoDb } = require("./database/mongoDb");
@@ -26,6 +27,15 @@ app.use((req, res, next) => {
 app.use(errorHandler);
 
 mongoDb();
-app.listen(port, () =>
-  console.log(`✅ NVS-Rice Mart Server running on http://localhost:${port}`)
-);
+
+app.listen(port, async () => {
+  console.log(`✅ NVS-Rice Mart Server running on http://localhost:${port}`);
+  if (process.env.ENABLE_NGROK === "true") {
+    const url = await ngrok.connect({
+      addr: port,
+      authtoken: process.env.NGROK_AUTH_TOKEN,
+      // subdomain: process.env.NGROK_SUBDOMAIN // must be set for custom subdomain
+    });
+    console.log(`Public URL: ${url}`);
+  }
+});
