@@ -10,8 +10,9 @@ const productSchema = new mongoose.Schema(
     brand: { type: String, required: true, trim: true },
     generalPrice: { type: Number, required: true },
     stockQuantity: { type: Number, required: true },
+    //  cartStock: { type: Number, default: 1 },
     SKU: { type: String, required: true, trim: true },
-    weightInKg: { type: Number, required: true },
+    weightInKg: { type: Number, required: true }, //Enum 10 , 25 kg
     description: { type: String, trim: true },
     image: { type: String, default: DEFAULT_IMAGES.PRODUCT },
     type: {
@@ -19,6 +20,7 @@ const productSchema = new mongoose.Schema(
       enum: [...Object.values(PRODUCT_TYPES)],
       default: PRODUCT_TYPES.GROCERY,
     },
+    isOutOfStock: { type: Boolean, default: false },
     isActive: { type: Boolean, default: true },
     isDeleted: { type: Boolean, default: false },
   },
