@@ -13,7 +13,7 @@ exports.validateCreateLocation = (data) => {
     city: Joi.string().allow(""),
     district: Joi.string().allow(""),
     state: Joi.string().allow(""),
-    zipCode: Joi.string(),
+    zipcode: Joi.string(),
     country: Joi.string().min(2).max(80).optional(),
     coordinates: Joi.array()
       .items(Joi.number())
@@ -28,7 +28,7 @@ exports.validateCreateLocation = (data) => {
       city: Joi.string().optional(),
       district: Joi.string().optional(),
       state: Joi.string().optional(),
-      zipCode: Joi.string().optional(),
+      zipcode: Joi.string().optional(),
     }),
     otherwise: Joi.object({
       address: Joi.string().required().messages({
@@ -44,7 +44,7 @@ exports.validateCreateLocation = (data) => {
       state: Joi.string().required().messages({
         "any.required": "State is required when coordinates are not provided",
       }),
-      zipCode: Joi.string().required().messages({
+      zipcode: Joi.string().required().messages({
         "any.required":
           "Zip Code/Postal Code is required when coordinates are not provided",
       }),
@@ -68,7 +68,7 @@ exports.validateGetAllLocationsQuery = (payload) => {
     city: Joi.string().optional(),
     district: Joi.string().optional(),
     state: Joi.string().optional(),
-    zipCode: Joi.string().optional(),
+    zipcode: Joi.string().optional(),
     country: Joi.string().optional(),
     isActive: Joi.alternatives().try(Joi.string(), Joi.boolean()).optional(),
     fromDate: Joi.date().iso().optional(),

@@ -5,6 +5,7 @@ const productLocationSchema = new mongoose.Schema(
   {
     productId: ProductField,
     locationId: locationField,
+    zipcode: { type: String },
     price: { type: Number, default: 0 },
     stockQuantity: { type: Number, default: 0 },
     isActive: { type: Boolean, default: true },

@@ -14,7 +14,7 @@ const locationSchema = new mongoose.Schema(
     state: { type: String },
     country: { type: String },
     formattedAddress: { type: String },
-    zipCode: {
+    zipcode: {
       type: String,
       validate: {
         validator: function (v) {

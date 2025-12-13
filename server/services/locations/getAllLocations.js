@@ -15,7 +15,7 @@ exports.getAllLocations = async (query) => {
     city,
     district,
     state,
-    zipCode,
+    zipcode,
     country,
     isActive,
     fromDate,
@@ -32,7 +32,7 @@ exports.getAllLocations = async (query) => {
   if (city) match.city = city?.toLowerCase();
   if (district) match.district = district?.toLowerCase();
   if (state) match.state = state?.toLowerCase();
-  if (zipCode) match.zipCode = zipCode?.toLowerCase();
+  if (zipcode) match.zipcode = zipcode?.toLowerCase();
   if (country) match.country = country?.toLowerCase();
   if (userId) {
     validateObjectId(userId, "User Id");
@@ -55,7 +55,7 @@ exports.getAllLocations = async (query) => {
       { city: { $regex: new RegExp(search, "i") } },
       { district: { $regex: new RegExp(search, "i") } },
       { state: { $regex: new RegExp(search, "i") } },
-      { zipCode: { $regex: new RegExp(search, "i") } },
+      { zipcode: { $regex: new RegExp(search, "i") } },
       { country: { $regex: new RegExp(search, "i") } },
     ];
   }

@@ -14,23 +14,23 @@ exports.createLocation = async (payload) => {
     city,
     district,
     country,
-    zipCode,
+    zipcode,
     coordinates,
   } = payload;
   let locationData = payload;
   if (userId) validateObjectId(userId, "User Id");
   country = country?.toLowerCase() || "india";
   if (!coordinates) {
-    if (!address || !city || !district || !zipCode || !state) {
+    if (!address || !city || !district || !zipcode || !state) {
       throwError(
         422,
-        "Please pass coordinates(Lat & Long) Or provide address, city, district, zipCode and state "
+        "Please pass coordinates(Lat & Long) Or provide address, city, district, zipcode and state "
       );
     }
-    if (zipCode && !isValidZipCode(country, zipCode)) {
+    if (zipcode && !isValidZipCode(country, zipcode)) {
       throwError(
         422,
-        `${zipCode} is not a valid ZIP/postal code for ${country}`
+        `${zipcode} is not a valid ZIP/postal code for ${country}`
       );
     }
     locationData = {
@@ -41,17 +41,16 @@ exports.createLocation = async (payload) => {
       area: area?.toLowerCase(),
       city: city?.toLowerCase(),
       district: district?.toLowerCase(),
-      zipCode,
+      zipcode,
       state: state?.toLowerCase(),
       country: country?.toLowerCase(),
       formattedAddress:
-        `${address?.toLowerCase()}, ${city?.toLowerCase()}, ${district?.toLowerCase()}, ${state?.toLowerCase()}, ${zipCode}, ${country?.toLowerCase()}`.trim(),
+        `${address?.toLowerCase()}, ${city?.toLowerCase()}, ${district?.toLowerCase()}, ${state?.toLowerCase()}, ${zipcode}, ${country?.toLowerCase()}`.trim(),
       coordinates: [0, 0],
     };
   } else {
     const [lat, lon] = coordinates;
     const autoData = await getLocationDetailsFromCoords(lat, lon);
-    console.log("loc", autoData);
     if (!autoData) throwError(422, "please provide correct coordinates");
     locationData.coordinates = [autoData?.lat, autoData?.lon];
     locationData.formattedAddress = autoData?.formattedAddress;
@@ -60,7 +59,7 @@ exports.createLocation = async (payload) => {
     locationData.area = autoData?.area;
     locationData.city = autoData?.city;
     locationData.district = autoData?.district;
-    locationData.zipCode = autoData?.zipCode;
+    locationData.zipcode = autoData?.zipcode;
     locationData.state = autoData?.state;
     locationData.country = autoData?.country;
   }

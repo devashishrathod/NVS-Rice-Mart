@@ -23,3 +23,33 @@ exports.validateRemoveFromCart = (data) => {
   });
   return createSchema.validate(data, { abortEarly: false });
 };
+
+exports.validateVerifyCart = (data) => {
+  const schema = Joi.object({
+    zipcode: Joi.alternatives()
+      .try(
+        Joi.string()
+          .trim()
+          .pattern(/^[1-9][0-9]{5}$/)
+          .length(6)
+          .messages({
+            "string.pattern.base": "Invalid Indian PIN code",
+            "string.empty": "Zip Code / Postal Code cannot be empty",
+          }),
+        Joi.number().integer().min(100000).max(999999).messages({
+          "number.base": "Zip Code / Postal Code must be a number",
+          "number.min": "Invalid Indian PIN code",
+          "number.max": "Invalid Indian PIN code",
+          "number.integer": "Zip Code / Postal Code must be an integer",
+        })
+      )
+      .required()
+      .messages({
+        "any.required": "Zip Code / Postal Code is required",
+      }),
+  });
+  return schema.validate(data, {
+    abortEarly: false,
+    convert: true,
+  });
+};
