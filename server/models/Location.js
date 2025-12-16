@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 const { isValidZipCode } = require("../validator/common");
-const { userField, productsField } = require("./validObjectId");
+const { userField } = require("./validObjectId");
 
 const locationSchema = new mongoose.Schema(
   {
@@ -14,7 +14,7 @@ const locationSchema = new mongoose.Schema(
     state: { type: String },
     country: { type: String },
     formattedAddress: { type: String },
-    zipCode: {
+    zipcode: {
       type: String,
       validate: {
         validator: function (v) {

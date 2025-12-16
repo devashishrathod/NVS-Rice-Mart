@@ -9,14 +9,14 @@ module.exports = {
   isValidURL: (url) =>
     /^(https?:\/\/)?([\da-z.-]+)\.([a-z.]{2,6})([\/\w .-]*)*\/?$/.test(url),
 
-  isValidZipCode: (country, zipCode) => {
-    if (!country || !zipCode) return false;
+  isValidZipCode: (country, zipcode) => {
+    if (!country || !zipcode) return false;
     const countryCode = country.toUpperCase();
     const isoCode = ZIP_CODE_REGEX_MAP[countryCode]
       ? countryCode
       : COUNTRY_NAME_TO_ISO[countryCode.replace(/\s/g, "").toLowerCase()];
     if (!isoCode) return true; // skip validation for unsupported countries
     const regex = ZIP_CODE_REGEX_MAP[isoCode];
-    return regex ? regex.test(zipCode) : true;
+    return regex ? regex.test(zipcode) : true;
   },
 };

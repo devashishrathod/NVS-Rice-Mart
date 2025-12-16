@@ -32,7 +32,7 @@ exports.getLocationDetailsFromCoords = async (lat, lon) => {
       area: addr?.county?.toLowerCase() || null,
       city,
       district,
-      zipCode:
+      zipcode:
         addr.postcode?.toLowerCase() ||
         (await getDistrictOrCityPostcode(country, district, city)) ||
         null,
