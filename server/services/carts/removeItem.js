@@ -41,7 +41,8 @@ exports.removeItem = async (userId, productId, payload) => {
   if (cart.items.length === 0) {
     cart.subTotal = 0;
     cart.isDeleted = true;
-    return await cart.save();
+    await cart.save();
+    throwError(200, "Your cart is now empty");
   }
   const productIds = cart.items.map((i) => i.productId);
   const products = await Product.find(
