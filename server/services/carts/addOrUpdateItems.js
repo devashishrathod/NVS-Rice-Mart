@@ -26,9 +26,13 @@ exports.addOrUpdateItem = async (userId, payload) => {
         {
           productId,
           quantity,
+          productWeight: product.weightInKg,
+          itemWeight: product.weightInKg * quantity,
           priceSnapshot: product.generalPrice,
         },
       ],
+      totalWeight: product.weightInKg * quantity,
+      totalQuantity: quantity,
     });
   } else {
     if (cart.isDeleted) cart.isDeleted = false;
@@ -49,22 +53,47 @@ exports.addOrUpdateItem = async (userId, payload) => {
       validItems.push({
         ...item.toObject(),
         priceSnapshot: existingProduct.generalPrice,
+        productWeight: existingProduct.weightInKg,
+        itemWeight: existingProduct.weightInKg * item.quantity,
       });
     }
     cart.items = validItems;
+    if (validItems.length > 0) {
+      cart.totalWeight = validItems.reduce((sum, item) => {
+        const weight = Number(item.productWeight) || 0;
+        const qty = Number(item.quantity) || 0;
+        return sum + weight * qty;
+      }, 0);
+      cart.totalQuantity = validItems.reduce((sum, item) => {
+        const qty = Number(item.quantity) || 0;
+        return sum + qty;
+      }, 0);
+    }
     const index = cart.items.findIndex(
-      (i) => i.productId.toString() === productId
+      (i) => i.productId.toString() === productId,
     );
     if (index > -1) {
       cart.items[index].quantity += quantity;
+      cart.items[index].priceSnapshot = product.generalPrice;
+      cart.items[index].productWeight = product.weightInKg;
+      cart.items[index].itemWeight =
+        cart.items[index].productWeight * cart.items[index].quantity;
+      cart.totalWeight += product.weightInKg * quantity;
+      cart.totalQuantity += quantity;
     } else {
       cart.items.push({
         productId,
         quantity,
+        productWeight: product.weightInKg,
+        itemWeight: product.weightInKg * quantity,
         priceSnapshot: product.generalPrice,
       });
+      cart.totalWeight += product.weightInKg * quantity;
+      cart.totalQuantity += quantity;
     }
   }
+  cart.totalWeight = Math.max(cart.totalWeight, 0);
+  cart.totalQuantity = Math.max(cart.totalQuantity, 0);
   cart.subTotal = cart.items.reduce((sum, item) => {
     const price = Number(item.priceSnapshot) || 0;
     const qty = Number(item.quantity) || 0;

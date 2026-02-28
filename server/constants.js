@@ -48,6 +48,28 @@ module.exports = {
     CLOTHING: "clothing",
   }),
 
+  DELIVERY_SETTINGS: Object.freeze({
+    BASE_CHARGE: 30,
+    PER_KM_RATE: 5,
+    PER_KG_RATE: 1.5,
+    DISTANCE_FACTOR: 4,
+    WEIGHT_FACTOR: 6,
+    MIN_DELIVERY_CHARGE: 40,
+    BASE_MAX_CHARGE: 150,
+    MAX_PER_KG_INCREMENT: 1.2,
+    MAX_PER_KM_INCREMENT: 4,
+    MAX_RADIUS_KM: 50,
+  }),
+
+  SHOP_ADDRESS: Object.freeze({
+    CITY: "davangeere",
+    STATE: "karnatka",
+    COUNTRY: "india",
+    ZIPCODE: "123456",
+    LAT: 12.9716,
+    LNG: 77.5946,
+  }),
+
   ZIP_CODE_REGEX_MAP: Object.freeze({
     IN: /^[1-9][0-9]{5}$/, // India (6 digits)
     US: /^\d{5}(-\d{4})?$/, // USA (ZIP or ZIP+4)

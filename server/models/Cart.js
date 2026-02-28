@@ -35,21 +35,25 @@ const cartItemSchema = new mongoose.Schema(
     _id: false,
     productId: ProductField,
     quantity: { type: Number, required: true, min: 1 },
+    productWeight: { type: Number, required: true },
+    itemWeight: { type: Number, required: true },
     priceSnapshot: { type: Number, required: true },
     resolvedPincode: { type: String },
   },
-  { versionKey: false }
+  { versionKey: false },
 );
 
 const cartSchema = new mongoose.Schema(
   {
     userId: userField,
     items: [cartItemSchema],
+    totalWeight: { type: Number, default: 0 },
+    totalQuantity: { type: Number, default: 0 },
     subTotal: { type: Number, default: 0 },
     isPurchased: { type: Boolean, default: false },
     isDeleted: { type: Boolean, default: false },
   },
-  { timestamps: true, versionKey: false }
+  { timestamps: true, versionKey: false },
 );
 
 cartSchema.pre("save", function () {

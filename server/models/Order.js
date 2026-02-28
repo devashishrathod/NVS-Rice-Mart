@@ -1,23 +1,29 @@
 const mongoose = require("mongoose");
-const { userField, ProductField } = require("./validObjectId");
+const {
+  userField,
+  cartField,
+  ProductField,
+  locationField,
+} = require("./validObjectId");
 
 const orderItemSchema = new mongoose.Schema(
   {
     productId: ProductField,
     quantity: Number,
     price: Number,
-    locationId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Location",
-    },
+    locationId: locationField,
   },
-  { _id: false }
+  { _id: false },
 );
 
 const orderSchema = new mongoose.Schema(
   {
     userId: userField,
+    cartId: cartField,
+    locationId: locationField,
     items: [orderItemSchema],
+    distanceKm: Number,
+    deliveryCharge: Number,
     subTotal: Number,
     payableAmount: Number,
     paymentMethod: {
@@ -27,8 +33,8 @@ const orderSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["PENDING", "CONFIRMED", "PAID", "CANCELLED"],
-      default: "PENDING",
+      enum: ["INITIATED", "PENDING", "CONFIRMED", "DELIVERED", "CANCELLED"],
+      default: "INITIATED",
     },
     paymentStatus: {
       type: String,
@@ -38,7 +44,7 @@ const orderSchema = new mongoose.Schema(
     razorpayOrderId: String,
     deliveryPincode: String,
   },
-  { timestamps: true, versionKey: false }
+  { timestamps: true, versionKey: false },
 );
 
 module.exports = mongoose.model("Order", orderSchema);
