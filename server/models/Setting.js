@@ -5,7 +5,7 @@ const settingSchema = new mongoose.Schema(
   {
     delivery: {
       shopLocationId: locationField,
-      baseCharge: { type: Number, default: 20 },
+      baseCharge: { type: Number, default: 30 },
       perKmRate: { type: Number, default: 5 },
       perKgRate: { type: Number, default: 1.5 },
       distanceFactor: { type: Number, default: 4 },
