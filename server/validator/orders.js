@@ -1,7 +1,13 @@
 const Joi = require("joi");
+const objectId = require("./validJoiObjectId");
 
 exports.validateCreateOrder = (data) => {
   const schema = Joi.object({
+    locationId: objectId().required().messages({
+      "any.required": "Location ID is required",
+      "any.invalid": "Invalid location ID format",
+      "string.empty": "Location ID cannot be empty",
+    }),
     paymentMethod: Joi.string().required().valid("COD", "ONLINE").messages({
       "any.required": "Payment method is required",
       "string.base": "Payment method must be a string",
