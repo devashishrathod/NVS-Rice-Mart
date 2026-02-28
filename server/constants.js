@@ -49,15 +49,16 @@ module.exports = {
   }),
 
   DELIVERY_SETTINGS: Object.freeze({
-    BASE_CHARGE: 20,
-    PER_KM_RATE: 6,
-    PER_KG_RATE: 8,
+    BASE_CHARGE: 30,
+    PER_KM_RATE: 5,
+    PER_KG_RATE: 1.5,
     DISTANCE_FACTOR: 4,
     WEIGHT_FACTOR: 6,
     MIN_DELIVERY_CHARGE: 40,
     BASE_MAX_CHARGE: 150,
     MAX_PER_KG_INCREMENT: 1.2,
     MAX_PER_KM_INCREMENT: 4,
+    MAX_RADIUS_KM: 50,
   }),
 
   SHOP_ADDRESS: Object.freeze({

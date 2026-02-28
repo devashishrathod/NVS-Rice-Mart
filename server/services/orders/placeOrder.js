@@ -14,6 +14,7 @@ const {
 const {
   calculateDeliveryCharges,
 } = require("../../helpers/orders/calculateDeliveryCharges");
+const { DELIVERY_SETTINGS } = require("../../constants");
 
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY,
@@ -86,6 +87,11 @@ exports.placeOrder = async (userId, payload) => {
   );
   console.log("Total distance for delivery:", totalDistance, "km");
   const deliverySetting = setting?.delivery || {};
+  const maxRadiusKm =
+    Number(deliverySetting?.maxRadiusKm) ?? DELIVERY_SETTINGS.MAX_RADIUS_KM;
+  if (totalDistance > maxRadiusKm) {
+    throwError(400, `Delivery not available beyond ${maxRadiusKm} km`);
+  }
   const deliveryPrice = calculateDeliveryCharges(
     cart.totalWeight,
     totalDistance,
@@ -100,6 +106,8 @@ exports.placeOrder = async (userId, payload) => {
       quantity: i.quantity,
       price: i.priceSnapshot,
     })),
+    distanceKm: totalDistance,
+    deliveryCharge: deliveryPrice,
     subTotal: cart.subTotal,
     payableAmount: cart.subTotal + deliveryPrice,
     paymentMethod,
