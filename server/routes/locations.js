@@ -14,6 +14,6 @@ router.post("/create", verifyJwtToken, create);
 router.get("/getAll", verifyJwtToken, getAll);
 router.get("/get/:id", verifyJwtToken, get);
 //router.put("/update/:id", isAdmin, update);
-router.delete("/delete/:id", isAdmin, deleteLocation);
+router.delete("/delete/:id", verifyJwtToken, deleteLocation);
 
 module.exports = router;
