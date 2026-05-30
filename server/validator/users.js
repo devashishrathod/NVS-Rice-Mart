@@ -24,3 +24,23 @@ exports.validateUpdateUser = (data) => {
   });
   return schema.validate(data, { abortEarly: false });
 };
+
+exports.validateGetAllUsersQuery = (payload) => {
+  const getAllQuerySchema = Joi.object({
+    page: Joi.number().integer().min(1).optional(),
+    limit: Joi.number().integer().min(1).optional(),
+    search: Joi.string().optional(),
+    name: Joi.string().optional(),
+    email: Joi.string().email().optional(),
+    mobile: Joi.string().optional(),
+    role: Joi.string().optional(),
+    isActive: Joi.alternatives().try(Joi.boolean(), Joi.string()).optional(),
+    fromDate: Joi.date().iso().optional(),
+    toDate: Joi.date().iso().optional(),
+    sortBy: Joi.string()
+      .valid("createdAt", "name", "email", "lastActivity")
+      .optional(),
+    sortOrder: Joi.string().valid("asc", "desc").optional(),
+  });
+  return getAllQuerySchema.validate(payload, { abortEarly: false });
+};
