@@ -17,6 +17,7 @@ exports.getAllLocations = async (query) => {
     state,
     zipcode,
     country,
+    isProductAddress,
     isActive,
     fromDate,
     toDate,
@@ -28,6 +29,10 @@ exports.getAllLocations = async (query) => {
   const match = { isDeleted: false };
   if (typeof isActive !== "undefined") {
     match.isActive = isActive === "true" || isActive === true;
+  }
+  if (typeof isProductAddress !== "undefined") {
+    match.isProductAddress =
+      isProductAddress === "true" || isProductAddress === true;
   }
   if (city) match.city = city?.toLowerCase();
   if (district) match.district = district?.toLowerCase();

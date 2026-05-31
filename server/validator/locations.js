@@ -70,6 +70,9 @@ exports.validateGetAllLocationsQuery = (payload) => {
     state: Joi.string().optional(),
     zipcode: Joi.string().optional(),
     country: Joi.string().optional(),
+    isProductAddress: Joi.alternatives()
+      .try(Joi.string(), Joi.boolean())
+      .optional(),
     isActive: Joi.alternatives().try(Joi.string(), Joi.boolean()).optional(),
     fromDate: Joi.date().iso().optional(),
     toDate: Joi.date().iso().optional(),
