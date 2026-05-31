@@ -107,9 +107,9 @@ exports.placeOrder = async (userId, payload) => {
       price: i.priceSnapshot,
     })),
     distanceKm: totalDistance,
-    deliveryCharge: deliveryPrice,
+    deliveryCharge: 0, // deliveryPrice,
     subTotal: cart.subTotal,
-    payableAmount: cart.subTotal + deliveryPrice,
+    payableAmount: cart.subTotal, // + deliveryPrice,
     paymentMethod,
     paymentStatus: paymentMethod === "ONLINE" ? "INITIATED" : "NOT_REQUIRED",
   });
