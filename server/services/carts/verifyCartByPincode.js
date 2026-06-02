@@ -15,7 +15,8 @@ exports.verifyCartByPincode = async (userId, payload) => {
   }
   const locations = await Location.find({
     zipcode,
-    userId: { $exists: false }, //////////////
+    //  userId: { $exists: false }, //////////////
+    isProductAddress: true,
     isActive: true,
     isDeleted: false,
   }).select("_id");
