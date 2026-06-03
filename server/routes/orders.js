@@ -14,6 +14,6 @@ router.post("/create", verifyJwtToken, create);
 router.post("/verify-payment", verifyJwtToken, verify);
 router.get("/getAll", verifyJwtToken, getAll);
 router.get("/get/:id", verifyJwtToken, get);
-router.put("/update/:id", isAdmin, update);
+router.put("/update/:id", verifyJwtToken, update);
 
 module.exports = router;
