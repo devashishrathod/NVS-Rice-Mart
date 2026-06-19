@@ -33,6 +33,39 @@ exports.validateCreateProduct = (data) => {
   return createSchema.validate(data, { abortEarly: false });
 };
 
+exports.validateUpdateProduct = (data) => {
+  const updateSchema = Joi.object({
+    name: Joi.string().min(3).max(100).optional().messages({
+      "string.min": "Name has minimum {#limit} characters",
+      "string.max": "Name cannot exceed {#limit} characters",
+    }),
+    description: Joi.string().allow("").max(500).messages({
+      "string.max": "Description cannot exceed {#limit} characters",
+    }),
+    subCategoryId: objectId().optional().messages({
+      "any.invalid": "Invalid subCategoryId format",
+    }),
+    type: Joi.string().valid("grocery", "electronics", "clothing").optional(),
+    locationIds: Joi.array().items(objectId()).optional(),
+    brand: Joi.string().min(3).max(80).optional().messages({
+      "string.min": "Brand has minimum {#limit} characters",
+      "string.max": "Brand cannot exceed {#limit} characters",
+    }),
+    generalPrice: Joi.number().min(0).optional().messages({
+      "number.min": "General Price cannot be negative",
+    }),
+    stockQuantity: Joi.number().min(0).optional().messages({
+      "number.min": "Stock Quantity cannot be negative",
+    }),
+    weightInKg: Joi.number().min(0).optional().messages({
+      "number.min": "Weight in Kg cannot be negative",
+    }),
+    isActive: Joi.boolean().optional(),
+    isOutOfStock: Joi.boolean().optional(),
+  });
+  return updateSchema.validate(data, { abortEarly: false });
+};
+
 exports.validateGetAllProductsQuery = (payload) => {
   const getAllQuerySchema = Joi.object({
     page: Joi.number().integer().min(1).optional(),
