@@ -4,6 +4,7 @@ const Order = require("../../models/Order");
 const Transaction = require("../../models/Transaction");
 const ProductLocation = require("../../models/ProductLocation");
 const Cart = require("../../models/Cart");
+const { sendSingleNotification } = require("../../helpers/notifications");
 const { throwError } = require("../../utils");
 
 exports.verifyPayment = async (payload) => {
@@ -37,7 +38,7 @@ exports.verifyPayment = async (payload) => {
           stockQuantity: { $gte: item.quantity },
         },
         { $inc: { stockQuantity: -item.quantity } },
-        { session }
+        { session },
       );
 
       if (!updated.modifiedCount) {
@@ -56,17 +57,24 @@ exports.verifyPayment = async (payload) => {
         razorpaySignature,
         status: "SUCCESS",
       },
-      { session }
+      { session },
     );
 
     await Cart.updateOne(
       { userId: order.userId, isPurchased: false },
       { isPurchased: true },
-      { session }
+      { session },
     );
 
     await session.commitTransaction();
     session.endSession();
+    await sendSingleNotification(
+      order.userId,
+      "Order Placed",
+      "New order has been placed successfully!",
+      "order",
+      { orderId: order._id.toString() },
+    );
   } catch (err) {
     await session.abortTransaction();
     session.endSession();
