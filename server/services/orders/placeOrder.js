@@ -14,6 +14,7 @@ const {
 const {
   calculateDeliveryCharges,
 } = require("../../helpers/orders/calculateDeliveryCharges");
+const { sendSingleNotification } = require("../../helpers/notifications");
 const { DELIVERY_SETTINGS } = require("../../constants");
 
 const razorpay = new Razorpay({
@@ -168,6 +169,13 @@ exports.placeOrder = async (userId, payload) => {
       );
       await session.commitTransaction();
       session.endSession();
+      await sendSingleNotification(
+        order.userId,
+        "Order Placed",
+        "New order has been placed successfully!",
+        "order",
+        { orderId: order._id.toString() },
+      );
       return {
         type: "COD",
         orderId: order._id,
