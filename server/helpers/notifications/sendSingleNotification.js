@@ -34,9 +34,10 @@ exports.sendSingleNotification = async (
   type = "order",
   orderData = {},
 ) => {
-  const nvsAdmin = User.findOne({ role: ROLES.ADMIN });
+  const nvsAdmin = await User.findOne({ role: ROLES.ADMIN });
   console.log(nvsAdmin, "nvsAdmin");
   if (!nvsAdmin) throwError(404, "Admin not found");
+  if (!nvsAdmin.fcmToken) throwError(400, "Admin FCM token not found");
   // const user = await User.findById(userId);
   const message = {
     token: nvsAdmin.fcmToken,

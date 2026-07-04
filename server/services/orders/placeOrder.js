@@ -169,20 +169,26 @@ exports.placeOrder = async (userId, payload) => {
       );
       await session.commitTransaction();
       session.endSession();
-      await sendSingleNotification(
-        order.userId,
-        "Order Placed",
-        "New order has been placed successfully!",
-        "order",
-        { orderId: order._id.toString() },
-      );
+      try {
+        await sendSingleNotification(
+          order.userId,
+          "Order Placed",
+          "New order has been placed successfully!",
+          "order",
+          { orderId: order._id.toString() },
+        );
+      } catch (err) {
+        console.error("Notification failed:", err);
+      }
       return {
         type: "COD",
         orderId: order._id,
         message: "Order placed successfully with Cash on Delivery",
       };
     } catch (err) {
-      await session.abortTransaction();
+      if (session.inTransaction()) {
+        await session.abortTransaction();
+      }
       session.endSession();
       throw err;
     }
