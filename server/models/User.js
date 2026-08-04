@@ -4,12 +4,14 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const { ROLES, LOGIN_TYPES } = require("../constants");
 const { isValidPhoneNumber } = require("../validator/common");
+const { locationField } = require("./validObjectId");
 
 const userSchema = new mongoose.Schema(
   {
+    locationId: locationField,
     name: { type: String },
     address: { type: String },
-    dob: { type: String },
+    dob: { type: Date },
     role: {
       type: String,
       enum: [...Object.values(ROLES)],
@@ -40,8 +42,8 @@ const userSchema = new mongoose.Schema(
     // referCode: { type: String, unique: true },
     // appliedReferalCode: { type: String },
     lastActivity: { type: Date, default: Date.now },
-    lastLocation: { lat: Number, lng: Number },
-    currentLocation: { lat: Number, lng: Number },
+    // lastLocation: { lat: Number, lng: Number },
+    // currentLocation: { lat: Number, lng: Number },
     fcmToken: { type: String },
     image: { type: String },
     otp: { code: String, expiresAt: Date },
@@ -56,7 +58,7 @@ const userSchema = new mongoose.Schema(
     isActive: { type: Boolean, default: true },
     isDeleted: { type: Boolean, default: false },
   },
-  { timestamps: true, versionKey: false }
+  { timestamps: true, versionKey: false },
 );
 
 userSchema.methods.getSignedJwtToken = function (options = {}) {
@@ -65,7 +67,7 @@ userSchema.methods.getSignedJwtToken = function (options = {}) {
   return jwt.sign(
     { id: this._id, role: this.role, name: this.name, email: this.email },
     secret,
-    { expiresIn }
+    { expiresIn },
   );
 };
 
