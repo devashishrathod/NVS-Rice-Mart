@@ -26,6 +26,7 @@ const locationSchema = new mongoose.Schema(
     },
     coordinates: { type: [Number], default: [0, 0] }, // [lat , lng]
     isProductAddress: { type: Boolean, default: false },
+    isVendorAddress: { type: Boolean },
     isDefault: { type: Boolean, default: false },
     isActive: { type: Boolean, default: true },
     isDeleted: { type: Boolean, default: false },

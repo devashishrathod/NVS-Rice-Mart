@@ -1,3 +1,4 @@
+const User = require("../../models/User");
 const Location = require("../../models/Location");
 const { validateObjectId, throwError } = require("../../utils");
 const { isValidZipCode } = require("../../validator/common");
@@ -15,12 +16,16 @@ exports.createLocation = async (tokenUserId, payload) => {
     district,
     country,
     zipcode,
+    formattedAddress,
     coordinates,
     isProductAddress,
+    isVendorAddress,
   } = payload;
   let locationData = payload;
   userId = userId || tokenUserId;
   if (userId) validateObjectId(userId, "User Id");
+  const user = await User.findById(userId);
+  if (!user || user.isDeleted) throwError(404, "User not found");
   country = country?.toLowerCase() || "india";
   // if (!coordinates) {
   if (!address || !city || !district || !zipcode || !state || !coordinates) {
@@ -43,10 +48,12 @@ exports.createLocation = async (tokenUserId, payload) => {
     zipcode,
     state: state?.toLowerCase(),
     country: country?.toLowerCase(),
-    formattedAddress:
-      `${address?.toLowerCase()}, ${city?.toLowerCase()}, ${district?.toLowerCase()}, ${state?.toLowerCase()}, ${zipcode}, ${country?.toLowerCase()}`.trim(),
+    formattedAddress: formattedAddress
+      ? formattedAddress?.toLowerCase()
+      : `${address?.toLowerCase()}, ${city?.toLowerCase()}, ${district?.toLowerCase()}, ${state?.toLowerCase()}, ${zipcode}, ${country?.toLowerCase()}`.trim(),
     coordinates,
-    isProductAddress: isProductAddress || false,
+   // isProductAddress: isProductAddress || false,
+    isVendorAddress: isVendorAddress,
   };
   // } else {
   //   const [lat, lon] = coordinates;
@@ -63,5 +70,8 @@ exports.createLocation = async (tokenUserId, payload) => {
   //   locationData.state = autoData?.state;
   //   locationData.country = autoData?.country;
   // }
-  return await Location.create(locationData);
+  const location = await Location.create(locationData);
+  user.locationId = location._id;
+  await user.save();
+  return location;
 };
