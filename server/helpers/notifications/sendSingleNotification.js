@@ -2,24 +2,24 @@ const fs = require("fs");
 const path = require("path");
 const admin = require("firebase-admin");
 const User = require("../../models/User");
-const serviceAccount = require("../../firebaseServiceKeys.json");
+//const serviceAccount = require("../../firebaseServiceKeys.json");
 const { ROLES } = require("../../constants");
 const { throwError } = require("../../utils");
 
-// let serviceAccount;
+let serviceAccount;
 
-// // Render Secret File Path
-// const renderSecretPath = "/etc/secrets/firebaseServiceKeys.json";
+// Render Secret File Path
+const renderSecretPath = "/etc/secrets/firebaseServiceKeys.json";
 
-// if (fs.existsSync(renderSecretPath)) {
-//   console.log("✅ Using Firebase Secret File from Render");
-//   serviceAccount = require(renderSecretPath);
-// } else {
-//   console.log("✅ Using Local Firebase Service Account");
-//   serviceAccount = require(
-//     path.join(__dirname, "../../firebaseServiceKeys.json"),
-//   );
-// }
+if (fs.existsSync(renderSecretPath)) {
+  console.log("✅ Using Firebase Secret File from Render");
+  serviceAccount = require(renderSecretPath);
+} else {
+  console.log("✅ Using Local Firebase Service Account");
+  serviceAccount = require(
+    path.join(__dirname, "../../firebaseServiceKeys.json"),
+  );
+}
 
 if (!admin.apps.length) {
   admin.initializeApp({
