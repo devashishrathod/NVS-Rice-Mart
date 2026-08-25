@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const Category = require("../../models/Category");
 const { pagination } = require("../../utils");
 
@@ -7,6 +8,7 @@ exports.getAllCategories = async (query) => {
     limit,
     search,
     name,
+    userId,
     isActive,
     fromDate,
     toDate,
@@ -19,6 +21,7 @@ exports.getAllCategories = async (query) => {
   if (typeof isActive !== "undefined") {
     match.isActive = isActive === "true" || isActive === true;
   }
+  if (userId) match.userId = new mongoose.Types.ObjectId(userId);
   if (name) match.name = { $regex: new RegExp(name, "i") };
   if (search) {
     match.$or = [

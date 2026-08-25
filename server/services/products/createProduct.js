@@ -5,7 +5,7 @@ const { throwError, validateObjectId } = require("../../utils");
 const { uploadImage } = require("../uploads");
 const { PRODUCT_TYPES } = require("../../constants");
 
-exports.createProduct = async (payload, image) => {
+exports.createProduct = async (userId, payload, image) => {
   let {
     name,
     brand,
@@ -43,6 +43,7 @@ exports.createProduct = async (payload, image) => {
   let imageUrl;
   if (image) imageUrl = await uploadImage(image.tempFilePath);
   return await Product.create({
+    userId: subCategory?.userId || userId,
     categoryId: subCategory?.categoryId,
     subCategoryId,
     locationIds,

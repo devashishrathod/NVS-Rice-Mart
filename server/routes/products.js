@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 
-const { isAdmin, verifyJwtToken } = require("../middlewares");
+const { verifyJwtToken, isVendor } = require("../middlewares");
 const {
   create,
   getAll,
@@ -13,11 +13,11 @@ const {
   checkProductDelivery,
 } = require("../controllers/products");
 
-router.post("/create", isAdmin, create);
+router.post("/create", isVendor, create);
 router.get("/getAll", verifyJwtToken, getAll);
 router.get("/get/:id", verifyJwtToken, getOne);
-router.put("/update/:id", isAdmin, update);
-router.delete("/delete/:id", isAdmin, deleteProduct);
+router.put("/update/:id", isVendor, update);
+router.delete("/delete/:id", isVendor, deleteProduct);
 router.put(
   "/update-product-locations/:productId",
   // isAdmin,

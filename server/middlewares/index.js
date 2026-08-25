@@ -1,7 +1,13 @@
 const { errorHandler } = require("./errorHandler");
 const { generateJwtToken } = require("./generateJwtToken");
 const { verifyJwtToken } = require("./verifyJwtToken");
-const { validateRoles, isAdmin, isUser, isStaff } = require("./validateRoles");
+const {
+  validateRoles,
+  isAdmin,
+  isVendor,
+  isUser,
+  isStaff,
+} = require("./validateRoles");
 
 module.exports = {
   errorHandler,
@@ -9,6 +15,7 @@ module.exports = {
   verifyJwtToken,
   validateRoles,
   isAdmin,
+  isVendor,
   isUser,
   isStaff,
 };

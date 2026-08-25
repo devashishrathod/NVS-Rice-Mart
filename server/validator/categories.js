@@ -34,6 +34,9 @@ exports.validateGetAllCategoriesQuery = (payload) => {
     limit: Joi.number().integer().min(1).optional(),
     search: Joi.string().optional(),
     name: Joi.string().optional(),
+    userId: objectId().optional().messages({
+      "any.invalid": "Invalid userId format",
+    }),
     isActive: Joi.alternatives().try(Joi.string(), Joi.boolean()).optional(),
     fromDate: Joi.date().iso().optional(),
     toDate: Joi.date().iso().optional(),

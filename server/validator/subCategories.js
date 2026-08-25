@@ -41,6 +41,9 @@ exports.validateGetAllSubCategoriesQuery = (payload) => {
     categoryId: objectId().optional().messages({
       "any.invalid": "Invalid categoryId format",
     }),
+    userId: objectId().optional().messages({
+      "any.invalid": "Invalid userId format",
+    }),
     isActive: Joi.alternatives().try(Joi.string(), Joi.boolean()).optional(),
     fromDate: Joi.date().iso().optional(),
     toDate: Joi.date().iso().optional(),

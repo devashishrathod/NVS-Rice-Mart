@@ -9,6 +9,7 @@ exports.getAllProducts = async (query) => {
     search,
     name,
     brand,
+    userId,
     categoryId,
     subCategoryId,
     SKU,
@@ -39,6 +40,7 @@ exports.getAllProducts = async (query) => {
     match.type = type;
   }
   if (categoryId) match.categoryId = new mongoose.Types.ObjectId(categoryId);
+  if (userId) match.userId = new mongoose.Types.ObjectId(userId);
   if (subCategoryId) {
     match.subCategoryId = new mongoose.Types.ObjectId(subCategoryId);
   }

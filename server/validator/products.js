@@ -75,6 +75,9 @@ exports.validateGetAllProductsQuery = (payload) => {
     brand: Joi.string().optional(),
     categoryId: objectId().optional(),
     subCategoryId: objectId().optional(),
+    userId: objectId().optional().messages({
+      "any.invalid": "Invalid userId format",
+    }),
     SKU: Joi.string().optional(),
     type: Joi.string().valid("grocery", "electronics", "clothing").optional(),
     price: Joi.number().optional(),

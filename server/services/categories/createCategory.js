@@ -2,7 +2,7 @@ const Category = require("../../models/Category");
 const { throwError } = require("../../utils");
 const { uploadImage } = require("../uploads");
 
-exports.createCategory = async (payload, image) => {
+exports.createCategory = async (userId, payload, image) => {
   let { name, description, isActive } = payload;
   name = name?.toLowerCase();
   description = description?.toLowerCase();
@@ -13,6 +13,7 @@ exports.createCategory = async (payload, image) => {
   let imageUrl;
   if (image) imageUrl = await uploadImage(image.tempFilePath);
   return await Category.create({
+    userId,
     name,
     description,
     image: imageUrl,
