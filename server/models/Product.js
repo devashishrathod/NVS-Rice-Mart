@@ -1,9 +1,14 @@
 const mongoose = require("mongoose");
 const { PRODUCT_TYPES, DEFAULT_IMAGES } = require("../constants");
-const { categoryField, subCategoryField } = require("./validObjectId");
+const {
+  userField,
+  categoryField,
+  subCategoryField,
+} = require("./validObjectId");
 
 const productSchema = new mongoose.Schema(
   {
+    userId: { ...userField, required: true },
     categoryId: categoryField,
     subCategoryId: subCategoryField,
     name: { type: String, required: true, trim: true },
@@ -24,7 +29,7 @@ const productSchema = new mongoose.Schema(
     isActive: { type: Boolean, default: true },
     isDeleted: { type: Boolean, default: false },
   },
-  { timestamps: true, versionKey: false }
+  { timestamps: true, versionKey: false },
 );
 
 module.exports = mongoose.model("Product", productSchema);

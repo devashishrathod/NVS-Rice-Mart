@@ -35,19 +35,21 @@ const validateRoles = (...allowedRoles) =>
     if (!allowedRoles.includes(user.role)) {
       throwError(
         403,
-        "Forbidden: You do not have permission to perform this action."
+        "Forbidden: You do not have permission to perform this action.",
       );
     }
     next();
   });
 
 const isAdmin = validateRoles(ROLES.ADMIN);
+const isVendor = validateRoles(ROLES.VENDOR);
 const isUser = validateRoles(ROLES.USER);
 const isStaff = validateRoles(ROLES.STAFF);
 
 module.exports = {
   validateRoles,
   isAdmin,
+  isVendor,
   isUser,
   isStaff,
 };

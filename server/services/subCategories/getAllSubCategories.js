@@ -12,6 +12,7 @@ exports.getAllSubCategories = async (query) => {
     fromDate,
     toDate,
     categoryId,
+    userId,
     sortBy = "createdAt",
     sortOrder = "desc",
   } = query;
@@ -19,6 +20,7 @@ exports.getAllSubCategories = async (query) => {
   limit = limit ? Number(limit) : 10;
   const match = { isDeleted: false };
   if (categoryId) match.categoryId = new mongoose.Types.ObjectId(categoryId);
+  if (userId) match.userId = new mongoose.Types.ObjectId(userId);
   if (typeof isActive !== "undefined") {
     match.isActive = isActive === "true" || isActive === true;
   }
