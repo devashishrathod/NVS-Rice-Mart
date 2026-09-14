@@ -4,12 +4,13 @@ const { asyncWrapper, sendSuccess, throwError } = require("../../utils");
 const { verifyOtpToMobile } = require("../../helpers/twoFactor");
 
 exports.verifyOtpWithMobile = asyncWrapper(async (req, res) => {
-  let { sessionId, otp, mobile, role, fcmToken, loginType, currentScreen } =
-    req.body;
+  let { sessionId, otp, mobile, fcmToken, loginType, currentScreen } = req.body;
   if (!sessionId || !otp || !mobile) {
     throwError(422, "Please fill all required fields");
   }
-  role = role?.toLowerCase() || ROLES.USER;
+  // 🔒 OTP flow sirf customer account ka hai — role body se nahi aata.
+  // Vendor/admin password login (POST /auth/login) use karte hain.
+  const role = ROLES.USER;
   loginType = loginType?.toLowerCase() || LOGIN_TYPES.MOBILE;
   currentScreen = currentScreen?.toUpperCase();
   let user = await User.findOne({ mobile, role, isDeleted: false }).select(

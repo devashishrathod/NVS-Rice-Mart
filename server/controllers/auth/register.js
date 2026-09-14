@@ -3,13 +3,16 @@ const { ROLES, LOGIN_TYPES } = require("../../constants");
 const { asyncWrapper, sendSuccess, throwError } = require("../../utils");
 
 exports.register = asyncWrapper(async (req, res) => {
-  let { name, email, password, mobile, role, loginType, fcmToken } = req.body;
+  let { name, email, password, mobile, loginType, fcmToken } = req.body;
   if (!mobile && !email) {
     throwError(422, "Email or Mobile number any one of this is required");
   }
   email = email?.toLowerCase();
   name = name?.toLowerCase();
-  role = role?.toLowerCase() || ROLES.USER;
+  // 🔒 Public signup hamesha customer banata hai. `role` body se NAHI aata —
+  // warna koi bhi {"role":"admin"} bhej ke admin ban jata.
+  // Vendor sirf POST /vendors/create (isAdmin) se banega.
+  const role = ROLES.USER;
   loginType = loginType?.toLowerCase() || LOGIN_TYPES.PASSWORD;
   let user;
   if (email) {
@@ -33,5 +36,11 @@ exports.register = asyncWrapper(async (req, res) => {
   };
   user = await User.create(userData);
   const token = user.getSignedJwtToken();
-  return sendSuccess(res, 201, "User registered successfully", { user, token });
+  // `create()` ka doc password rakhta hai (select: false sirf query pe lagta
+  // hai), isliye response banane se pehle hata do.
+  const { password: _pw, otp: _otp, ...safeUser } = user.toObject();
+  return sendSuccess(res, 201, "User registered successfully", {
+    user: safeUser,
+    token,
+  });
 });
