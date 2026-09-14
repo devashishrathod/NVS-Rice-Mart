@@ -8,16 +8,20 @@ exports.updatePrivacyAndPolicy = async (id, payload) => {
     throwError(404, "Privacy and policy not found");
   }
   let { title, description, isActive } = payload;
-  if (typeof isActive !== "undefined") result.isActive = !result.isActive;
+  if (typeof isActive !== "undefined") {
+    // Pehle ye `!result.isActive` (toggle) karta tha — client jo bhejta tha
+    // usse ulta ho jata tha. Ab bheji hui value hi set hoti hai.
+    result.isActive = isActive === true || isActive === "true";
+  }
   if (title) {
     title = title.toLowerCase();
-    const existing = await result.findOne({
+    const existing = await PrivacyAndPolicy.findOne({
       _id: { $ne: id },
       title,
       isDeleted: false,
     });
     if (existing) {
-      throwError(400, "Another privacy and policy exists with this title");
+      throwError(409, "Another privacy and policy exists with this title");
     }
     result.title = title;
   }
