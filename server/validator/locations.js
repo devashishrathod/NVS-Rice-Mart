@@ -53,6 +53,28 @@ exports.validateCreateLocation = (data) => {
   return schema.validate(data, { abortEarly: false });
 };
 
+exports.validateUpdateLocation = (data) => {
+  const schema = Joi.object({
+    name: Joi.string().min(2).max(100).optional(),
+    shopOrBuildingNumber: Joi.string().allow("").optional(),
+    address: Joi.string().optional(),
+    area: Joi.string().allow("").optional(),
+    city: Joi.string().optional(),
+    district: Joi.string().optional(),
+    state: Joi.string().optional(),
+    country: Joi.string().min(2).max(80).optional(),
+    zipcode: Joi.string().optional(),
+    formattedAddress: Joi.string().allow("").optional(),
+    coordinates: Joi.array().items(Joi.number()).length(2).optional().messages({
+      "array.length": "Coordinates must be [latitude, longitude]",
+    }),
+    isDefault: Joi.boolean().optional(),
+  })
+    .min(1)
+    .messages({ "object.min": "At least one field is required to update" });
+  return schema.validate(data, { abortEarly: false, stripUnknown: true });
+};
+
 exports.validateGetAllLocationsQuery = (payload) => {
   const getAllQuerySchema = Joi.object({
     page: Joi.number().integer().min(1).optional(),
@@ -73,6 +95,7 @@ exports.validateGetAllLocationsQuery = (payload) => {
     isProductAddress: Joi.alternatives()
       .try(Joi.string(), Joi.boolean())
       .optional(),
+    isDefault: Joi.alternatives().try(Joi.string(), Joi.boolean()).optional(),
     isActive: Joi.alternatives().try(Joi.string(), Joi.boolean()).optional(),
     fromDate: Joi.date().iso().optional(),
     toDate: Joi.date().iso().optional(),
