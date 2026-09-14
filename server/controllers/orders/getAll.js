@@ -10,6 +10,9 @@ const { validateGetAllOrdersQuery } = require("../../validator/orders");
 exports.getAll = asyncWrapper(async (req, res) => {
   const { error } = validateGetAllOrdersQuery(req.query);
   if (error) throwError(422, cleanJoiError(error));
-  const result = await getAllOrders(req.query);
+  const result = await getAllOrders(req.query, {
+    userId: req.userId,
+    role: req.role,
+  });
   return sendSuccess(res, 200, "Orders fetched successfully", result);
 });
