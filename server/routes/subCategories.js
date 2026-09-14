@@ -1,7 +1,11 @@
 const express = require("express");
 const router = express.Router();
 
-const { verifyJwtToken, isVendor } = require("../middlewares");
+const {
+  verifyJwtToken,
+  isVendor,
+  attachServiceContext,
+} = require("../middlewares");
 const {
   createSubCategory,
   getAllSubCategories,
@@ -11,8 +15,8 @@ const {
 } = require("../controllers/subCategories");
 
 router.post("/:categoryId/create", isVendor, createSubCategory);
-router.get("/getAll", verifyJwtToken, getAllSubCategories);
-router.get("/get/:id", verifyJwtToken, getSubCategory);
+router.get("/getAll", verifyJwtToken, attachServiceContext, getAllSubCategories);
+router.get("/get/:id", verifyJwtToken, attachServiceContext, getSubCategory);
 router.put("/update/:id", isVendor, updateSubCategory);
 router.delete("/delete/:id", isVendor, deleteSubCategory);
 

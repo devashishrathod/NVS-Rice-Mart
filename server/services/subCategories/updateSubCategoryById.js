@@ -1,14 +1,17 @@
 const SubCategory = require("../../models/SubCategory");
 const Category = require("../../models/Category");
 const { throwError, validateObjectId } = require("../../utils");
+const { assertOwnership } = require("../assertOwnership");
 const { uploadImage, deleteImage } = require("../uploads");
 
-exports.updateSubCategoryById = async (id, payload, image) => {
+exports.updateSubCategoryById = async (id, payload, image, actor) => {
   validateObjectId(id, "SubCategory Id");
   const subcategory = await SubCategory.findById(id);
   if (!subcategory || subcategory.isDeleted) {
     throwError(404, "SubCategory not found");
   }
+  assertOwnership(subcategory, actor, "sub-category");
+
   if (payload) {
     let { name, description, categoryId, isActive } = payload;
     let category;
@@ -18,6 +21,8 @@ exports.updateSubCategoryById = async (id, payload, image) => {
       if (!category || category.isDeleted) {
         throwError(404, "Category not found!");
       }
+      // 🔒 Doosre vendor ki category me move na kar sake
+      assertOwnership(category, actor, "category");
       subcategory.categoryId = categoryId;
     }
     if (name) {
@@ -51,7 +56,8 @@ exports.updateSubCategoryById = async (id, payload, image) => {
       }
     }
     if (typeof isActive !== "undefined") {
-      subcategory.isActive = !subcategory.isActive;
+      // Pehle ye toggle karta tha (client jo bhejta tha usse ulta)
+      subcategory.isActive = isActive === true || isActive === "true";
     }
     if (description) subcategory.description = description?.toLowerCase() || "";
   }

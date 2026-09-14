@@ -1,8 +1,14 @@
 const mongoose = require("mongoose");
 const Category = require("../../models/Category");
 const { pagination } = require("../../utils");
+const { applyServiceScope } = require("../serviceAreas/applyServiceScope");
 
-exports.getAllCategories = async (query) => {
+/**
+ * @param {object} query
+ * @param {object} serviceContext  `attachServiceContext` se — customer ke liye
+ *        uske pincode ka vendor, vendor ke liye khud, admin ke liye sab.
+ */
+exports.getAllCategories = async (query, serviceContext) => {
   let {
     page,
     limit,
@@ -21,7 +27,10 @@ exports.getAllCategories = async (query) => {
   if (typeof isActive !== "undefined") {
     match.isActive = isActive === "true" || isActive === true;
   }
-  if (userId) match.userId = new mongoose.Types.ObjectId(userId);
+  // Customer ke liye ye scope se overwrite ho jayega (neeche)
+  if (userId && mongoose.Types.ObjectId.isValid(userId)) {
+    match.userId = new mongoose.Types.ObjectId(userId);
+  }
   if (name) match.name = { $regex: new RegExp(name, "i") };
   if (search) {
     match.$or = [
@@ -38,9 +47,13 @@ exports.getAllCategories = async (query) => {
       match.createdAt.$lte = d;
     }
   }
+  // 🔒 Scope SABSE AAKHIR me — client ka `userId` param ise override na kare
+  applyServiceScope(match, serviceContext);
+
   const pipeline = [{ $match: match }];
   pipeline.push({
     $project: {
+      userId: 1,
       name: 1,
       description: 1,
       image: 1,
@@ -51,5 +64,10 @@ exports.getAllCategories = async (query) => {
   const sortStage = {};
   sortStage[sortBy] = sortOrder === "asc" ? 1 : -1;
   pipeline.push({ $sort: sortStage });
-  return await pagination(Category, pipeline, page, limit);
+
+  // Customer ke liye khali list koi error nahi hai — 404 sirf
+  // "pincode serve nahi hota" ke liye reserve hai.
+  return await pagination(Category, pipeline, page, limit, {
+    throwOnEmpty: serviceContext?.mode !== "CUSTOMER",
+  });
 };

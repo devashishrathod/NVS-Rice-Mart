@@ -6,6 +6,9 @@ exports.updateSubCategory = asyncWrapper(async (req, res) => {
   const image = req.files?.image;
   const { error } = validateUpdateSubCategory(req.body);
   if (error) throwError(422, error.details.map((d) => d.message).join(", "));
-  const updated = await updateSubCategoryById(req.params?.id, req.body, image);
+  const updated = await updateSubCategoryById(req.params?.id, req.body, image, {
+    userId: req.userId,
+    role: req.role,
+  });
   return sendSuccess(res, 200, "Sub-category updated", updated);
 });

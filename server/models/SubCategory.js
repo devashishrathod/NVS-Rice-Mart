@@ -15,4 +15,8 @@ const subCategorySchema = new mongoose.Schema(
   { timestamps: true, versionKey: false },
 );
 
+subCategorySchema.index({ userId: 1, isDeleted: 1, isActive: 1 });
+subCategorySchema.index({ categoryId: 1, isDeleted: 1, isActive: 1 });
+// NOTE: `{ categoryId, name }` unique index Phase 1 me banega.
+
 module.exports = mongoose.model("SubCategory", subCategorySchema);

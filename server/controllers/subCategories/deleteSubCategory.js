@@ -2,6 +2,9 @@ const { asyncWrapper, sendSuccess } = require("../../utils");
 const { deleteSubCategoryById } = require("../../services/subCategories");
 
 exports.deleteSubCategory = asyncWrapper(async (req, res) => {
-  await deleteSubCategoryById(req.params?.id);
+  await deleteSubCategoryById(req.params?.id, {
+    userId: req.userId,
+    role: req.role,
+  });
   return sendSuccess(res, 200, "Sub-category deleted successfully");
 });

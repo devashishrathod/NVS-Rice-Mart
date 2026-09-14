@@ -14,4 +14,9 @@ const categorySchema = new mongoose.Schema(
   { timestamps: true, versionKey: false },
 );
 
+// Customer listing ka hot path: userId (vendor) + active filter
+categorySchema.index({ userId: 1, isDeleted: 1, isActive: 1 });
+// NOTE: `{ userId, name }` unique index Phase 1 me migration ke baad banega
+// (abhi saare docs me userId null hai, isliye index bana hi nahi sakta).
+
 module.exports = mongoose.model("Category", categorySchema);

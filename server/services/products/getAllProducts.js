@@ -1,8 +1,9 @@
 const mongoose = require("mongoose");
 const Product = require("../../models/Product");
 const { pagination } = require("../../utils");
+const { applyServiceScope } = require("../serviceAreas/applyServiceScope");
 
-exports.getAllProducts = async (query) => {
+exports.getAllProducts = async (query, serviceContext) => {
   let {
     page,
     limit,
@@ -39,9 +40,13 @@ exports.getAllProducts = async (query) => {
     type = type?.toLowerCase();
     match.type = type;
   }
-  if (categoryId) match.categoryId = new mongoose.Types.ObjectId(categoryId);
-  if (userId) match.userId = new mongoose.Types.ObjectId(userId);
-  if (subCategoryId) {
+  if (categoryId && mongoose.Types.ObjectId.isValid(categoryId)) {
+    match.categoryId = new mongoose.Types.ObjectId(categoryId);
+  }
+  if (userId && mongoose.Types.ObjectId.isValid(userId)) {
+    match.userId = new mongoose.Types.ObjectId(userId);
+  }
+  if (subCategoryId && mongoose.Types.ObjectId.isValid(subCategoryId)) {
     match.subCategoryId = new mongoose.Types.ObjectId(subCategoryId);
   }
   if (SKU) {
@@ -85,9 +90,17 @@ exports.getAllProducts = async (query) => {
     if (minStock) match.stockQuantity.$gte = Number(minStock);
     if (maxStock) match.stockQuantity.$lte = Number(maxStock);
   }
+  // 🔒 Scope sabse aakhir me
+  applyServiceScope(match, serviceContext);
+  // Customer ko out-of-stock product dikhane ka koi fayda nahi
+  if (serviceContext?.mode === "CUSTOMER") {
+    match.isOutOfStock = { $ne: true };
+  }
+
   const pipeline = [{ $match: match }];
   pipeline.push({
     $project: {
+      userId: 1,
       name: 1,
       brand: 1,
       categoryId: 1,
@@ -99,6 +112,7 @@ exports.getAllProducts = async (query) => {
       description: 1,
       image: 1,
       type: 1,
+      isOutOfStock: 1,
       isActive: 1,
       createdAt: 1,
     },
@@ -106,5 +120,7 @@ exports.getAllProducts = async (query) => {
   const sortStage = {};
   sortStage[sortBy] = sortOrder === "asc" ? 1 : -1;
   pipeline.push({ $sort: sortStage });
-  return await pagination(Product, pipeline, page, limit);
+  return await pagination(Product, pipeline, page, limit, {
+    throwOnEmpty: serviceContext?.mode !== "CUSTOMER",
+  });
 };

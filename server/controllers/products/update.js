@@ -11,6 +11,9 @@ exports.update = asyncWrapper(async (req, res) => {
   const { error, value } = validateUpdateProduct(req.body);
   if (error) throwError(422, cleanJoiError(error));
   const image = req.files?.image;
-  const product = await updateProduct(req.params.id, value, image);
+  const product = await updateProduct(req.params.id, value, image, {
+    userId: req.userId,
+    role: req.role,
+  });
   return sendSuccess(res, 200, "Product updated successfully", product);
 });

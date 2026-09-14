@@ -32,4 +32,10 @@ const productSchema = new mongoose.Schema(
   { timestamps: true, versionKey: false },
 );
 
+// Customer listing ka hot path
+productSchema.index({ userId: 1, isDeleted: 1, isActive: 1, createdAt: -1 });
+productSchema.index({ userId: 1, categoryId: 1, subCategoryId: 1 });
+productSchema.index({ subCategoryId: 1, isDeleted: 1 });
+// NOTE: `{ userId, SKU }` unique index Phase 1 me migration ke baad banega.
+
 module.exports = mongoose.model("Product", productSchema);
