@@ -1,12 +1,23 @@
 const mongoose = require("mongoose");
 const Product = require("../../models/Product");
+const { ERROR_CODES } = require("../../constants");
+const { throwError } = require("../../utils");
 
-exports.getProduct = async (productId) => {
+/**
+ * @param {string} productId
+ * @param {object} [serviceContext] pass karne pe serviceability check lagta hai
+ */
+exports.getProduct = async (productId, serviceContext) => {
   if (!mongoose.Types.ObjectId.isValid(productId)) return null;
+  const match = {
+    _id: new mongoose.Types.ObjectId(productId),
+    isDeleted: false,
+  };
+  // Customer ko inactive product nahi dikhna chahiye
+  if (serviceContext?.activeOnly) match.isActive = true;
+
   const pipeline = [
-    {
-      $match: { _id: new mongoose.Types.ObjectId(productId), isDeleted: false },
-    },
+    { $match: match },
     {
       $lookup: {
         from: "categories",
@@ -28,6 +39,7 @@ exports.getProduct = async (productId) => {
     {
       $project: {
         _id: 1,
+        userId: 1,
         name: 1,
         brand: 1,
         description: 1,
@@ -58,5 +70,19 @@ exports.getProduct = async (productId) => {
     },
   ];
   const [product] = await Product.aggregate(pipeline);
-  return product || null;
+  if (!product) return null;
+
+  // 🔒 Serviceability — product exist karta hai par customer ke area ka
+  // vendor iska owner nahi. Deep-link / share-link pe ye case aayega.
+  if (serviceContext?.vendorIds) {
+    const allowed = serviceContext.vendorIds.map(String);
+    if (!allowed.includes(String(product.userId))) {
+      throwError(
+        404,
+        "This product is not available in your area",
+        ERROR_CODES.PRODUCT_NOT_AVAILABLE_HERE,
+      );
+    }
+  }
+  return product;
 };

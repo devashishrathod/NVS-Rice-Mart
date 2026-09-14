@@ -14,7 +14,7 @@ exports.createSubCategory = asyncWrapper(async (req, res) => {
   const { error } = validateCreateSubCategory(req.body);
   if (error) throwError(422, error.details.map((d) => d.message).join(", "));
   const subCategory = await createSubCategory(
-    req.userId,
+    { userId: req.userId, role: req.role },
     categoryId,
     req.body,
     image,

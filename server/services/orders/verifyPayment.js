@@ -2,9 +2,10 @@ const crypto = require("crypto");
 const mongoose = require("mongoose");
 const Order = require("../../models/Order");
 const Transaction = require("../../models/Transaction");
-const ProductLocation = require("../../models/ProductLocation");
+const Product = require("../../models/Product");
 const Cart = require("../../models/Cart");
-const { sendSingleNotification } = require("../../helpers/notifications");
+const { notifyOrderPlaced } = require("../../helpers/notifications");
+const { ORDER_STATUS, PAYMENT_STATUS, ERROR_CODES } = require("../../constants");
 const { throwError } = require("../../utils");
 
 exports.verifyPayment = async (payload) => {
@@ -30,11 +31,15 @@ exports.verifyPayment = async (payload) => {
   session.startTransaction();
 
   try {
-    // 🔒 lock stock AFTER payment
+    // 🔒 Payment ke BAAD stock reserve. Stock ka single source `Product`
+    //    hai (D3) — pehle `ProductLocation` pe hota tha, aur `locationId`
+    //    filter ke bina kisi bhi random row ka stock ghata deta tha.
     for (const item of order.items) {
-      const updated = await ProductLocation.updateOne(
+      const updated = await Product.updateOne(
         {
-          productId: item.productId,
+          _id: item.productId,
+          userId: order.vendorId,
+          isDeleted: false,
           stockQuantity: { $gte: item.quantity },
         },
         { $inc: { stockQuantity: -item.quantity } },
@@ -42,19 +47,29 @@ exports.verifyPayment = async (payload) => {
       );
 
       if (!updated.modifiedCount) {
-        throwError(400, "Stock unavailable");
+        throwError(
+          409,
+          `${item.productSnapshot?.name || "An item"} is out of stock`,
+          ERROR_CODES.STOCK_UNAVAILABLE,
+        );
       }
     }
 
-    order.status = "PAID";
-    order.paymentStatus = "SUCCESS";
+    // ⚠️ Pehle yahan `status = "PAID"` tha jo ORDER_STATUS enum me hai hi
+    // nahi — payment ke baad save ValidationError deta tha, transaction
+    // abort hota tha, aur customer ka paisa kat jane ke baad bhi order
+    // nahi banta tha.
+    order.status = ORDER_STATUS.PENDING;
+    order.paymentStatus = PAYMENT_STATUS.SUCCESS;
     await order.save({ session });
 
     await Transaction.updateOne(
       { razorpayOrderId: razorpay_order_id },
       {
         razorpayPaymentId: razorpay_payment_id,
-        razorpaySignature,
+        // ⚠️ Pehle yahan `razorpaySignature` (undefined variable) tha —
+        // ReferenceError. Sahi naam `razorpay_signature` hai.
+        razorpaySignature: razorpay_signature,
         status: "SUCCESS",
       },
       { session },
@@ -67,17 +82,16 @@ exports.verifyPayment = async (payload) => {
     );
 
     await session.commitTransaction();
-    session.endSession();
-    await sendSingleNotification(
-      order.userId,
-      "Order Placed",
-      "New order has been placed successfully!",
-      "order",
-      { orderId: order._id.toString() },
+    // Notification transaction ke BAAHAR aur non-blocking — pehle ye
+    // `await` tha aur throw kar sakta tha, matlab payment verify hone ke
+    // baad bhi API error de deti thi.
+    notifyOrderPlaced(order).catch((e) =>
+      console.error("Order notification failed:", e?.message),
     );
   } catch (err) {
-    await session.abortTransaction();
-    session.endSession();
+    if (session.inTransaction()) await session.abortTransaction();
     throw err;
+  } finally {
+    session.endSession();
   }
 };

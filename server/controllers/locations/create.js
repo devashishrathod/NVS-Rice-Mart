@@ -1,15 +1,10 @@
-const {
-  asyncWrapper,
-  sendSuccess,
-  // throwError,
-  // cleanJoiError,
-} = require("../../utils");
-const { validateCreateLocation } = require("../../validator/locations");
+const { asyncWrapper, sendSuccess } = require("../../utils");
 const { createLocation } = require("../../services/locations");
 
 exports.create = asyncWrapper(async (req, res) => {
-  // const { error, value } = validateCreateLocation(req.body);
-  // if (error) throwError(422, cleanJoiError(error));
-  const result = await createLocation(req.userId, req.body);
+  const result = await createLocation(
+    { userId: req.userId, role: req.role },
+    req.body,
+  );
   return sendSuccess(res, 201, "Location created successfully", result);
 });

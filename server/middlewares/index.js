@@ -8,6 +8,10 @@ const {
   isUser,
   isStaff,
 } = require("./validateRoles");
+const {
+  attachServiceContext,
+  applyServiceScope,
+} = require("./attachServiceContext");
 
 module.exports = {
   errorHandler,
@@ -18,4 +22,6 @@ module.exports = {
   isVendor,
   isUser,
   isStaff,
+  attachServiceContext,
+  applyServiceScope,
 };

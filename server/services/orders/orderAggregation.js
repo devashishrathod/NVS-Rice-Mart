@@ -39,6 +39,28 @@ exports.buildOrderPipeline = ({ match = {}, sortStage = null } = {}) => {
     },
   );
 
+  // Vendor ki shop details — customer aur admin dono ko chahiye
+  pipeline.push(
+    {
+      $lookup: {
+        from: "vendorprofiles",
+        localField: "vendorId",
+        foreignField: "vendorId",
+        as: "vendorProfile",
+      },
+    },
+    { $unwind: { path: "$vendorProfile", preserveNullAndEmptyArrays: true } },
+    {
+      $lookup: {
+        from: "locations",
+        localField: "vendorLocationId",
+        foreignField: "_id",
+        as: "pickupLocation",
+      },
+    },
+    { $unwind: { path: "$pickupLocation", preserveNullAndEmptyArrays: true } },
+  );
+
   pipeline.push({
     $lookup: {
       from: "products",
@@ -76,7 +98,9 @@ exports.buildOrderPipeline = ({ match = {}, sortStage = null } = {}) => {
             productId: "$$it.productId",
             quantity: "$$it.quantity",
             price: "$$it.price",
-            locationId: "$$it.locationId",
+            // Order ke waqt ka snapshot — product delete ho jaye to bhi
+            // purana order readable rehta hai
+            productSnapshot: "$$it.productSnapshot",
             product: {
               $first: {
                 $filter: {
@@ -103,6 +127,12 @@ exports.buildOrderPipeline = ({ match = {}, sortStage = null } = {}) => {
 
   pipeline.push({
     $project: {
+      // userId / vendorId raw ids — ownership check aur client-side
+      // filtering dono ke liye chahiye
+      userId: 1,
+      vendorId: 1,
+      vendorLocationId: 1,
+      orderNumber: 1,
       cartId: 1,
       locationId: 1,
       distanceKm: 1,
@@ -126,6 +156,22 @@ exports.buildOrderPipeline = ({ match = {}, sortStage = null } = {}) => {
         createdAt: 1,
       },
       deliveryLocation: 1,
+      vendor: {
+        _id: "$vendorId",
+        shopName: "$vendorProfile.shopName",
+        logo: "$vendorProfile.logo",
+        supportMobile: "$vendorProfile.supportMobile",
+      },
+      pickupLocation: {
+        _id: "$pickupLocation._id",
+        formattedAddress: "$pickupLocation.formattedAddress",
+        zipcode: "$pickupLocation.zipcode",
+        coordinates: "$pickupLocation.coordinates",
+      },
+      statusHistory: 1,
+      cancelReason: 1,
+      deliveredAt: 1,
+      assignedTo: 1,
       transactions: 1,
       createdAt: 1,
       updatedAt: 1,

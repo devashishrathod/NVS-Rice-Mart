@@ -78,6 +78,11 @@ exports.validateGetAllProductsQuery = (payload) => {
     userId: objectId().optional().messages({
       "any.invalid": "Invalid userId format",
     }),
+    // Admin ke liye vendor filter; customer ke liye ignore hota hai
+    vendorId: objectId().optional(),
+    // Customer ki delivery location — kuch na bheja to uska default address
+    zipcode: Joi.string().optional(),
+    locationId: objectId().optional(),
     SKU: Joi.string().optional(),
     type: Joi.string().valid("grocery", "electronics", "clothing").optional(),
     price: Joi.number().optional(),

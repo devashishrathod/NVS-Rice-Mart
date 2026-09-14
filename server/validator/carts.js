@@ -26,6 +26,11 @@ exports.validateRemoveFromCart = (data) => {
 
 exports.validateVerifyCart = (data) => {
   const schema = Joi.object({
+    // `locationId` prefer karo — server usi se zipcode nikalta hai.
+    // `zipcode` tab kaam aata hai jab customer ne address save hi nahi kiya.
+    locationId: objectId().optional().messages({
+      "any.invalid": "Invalid locationId format",
+    }),
     zipcode: Joi.alternatives()
       .try(
         Joi.string()
@@ -43,11 +48,12 @@ exports.validateVerifyCart = (data) => {
           "number.integer": "Zip Code / Postal Code must be an integer",
         })
       )
-      .required()
-      .messages({
-        "any.required": "Zip Code / Postal Code is required",
-      }),
-  });
+      .optional(),
+  })
+    .or("locationId", "zipcode")
+    .messages({
+      "object.missing": "Either locationId or zipcode is required",
+    });
   return schema.validate(data, {
     abortEarly: false,
     convert: true,

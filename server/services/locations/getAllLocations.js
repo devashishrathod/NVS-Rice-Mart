@@ -1,8 +1,14 @@
 const { default: mongoose } = require("mongoose");
 const Location = require("../../models/Location");
-const { pagination, validateObjectId } = require("../../utils");
+const { ROLES } = require("../../constants");
+const { pagination, validateObjectId, throwError } = require("../../utils");
 
-exports.getAllLocations = async (query) => {
+/**
+ * @param {object} query
+ * @param {{ userId: any, role: string }} actor  REQUIRED — iske bina scoping
+ *        nahi lagti aur har user sabke addresses padh leta hai.
+ */
+exports.getAllLocations = async (query, actor) => {
   let {
     page,
     limit,
@@ -18,6 +24,7 @@ exports.getAllLocations = async (query) => {
     zipcode,
     country,
     isProductAddress,
+    isDefault,
     isActive,
     fromDate,
     toDate,
@@ -33,6 +40,9 @@ exports.getAllLocations = async (query) => {
   if (typeof isProductAddress !== "undefined") {
     match.isProductAddress =
       isProductAddress === "true" || isProductAddress === true;
+  }
+  if (typeof isDefault !== "undefined") {
+    match.isDefault = isDefault === "true" || isDefault === true;
   }
   if (city) match.city = city?.toLowerCase();
   if (district) match.district = district?.toLowerCase();
@@ -73,6 +83,13 @@ exports.getAllLocations = async (query) => {
       match.createdAt.$lte = d;
     }
   }
+  // 🔒 Scoping sabse aakhir me — client ka `userId` param ise override na kare.
+  // Address personal data hai: customer/vendor sirf apne dekhein, admin sab.
+  if (!actor?.role) throwError(401, "Access Denied! Missing user context");
+  if (actor.role !== ROLES.ADMIN && actor.role !== ROLES.STAFF) {
+    match.userId = new mongoose.Types.ObjectId(actor.userId);
+  }
+
   const pipeline = [{ $match: match }];
   const sortStage = {};
   sortStage[sortBy] = sortOrder === "asc" ? 1 : -1;

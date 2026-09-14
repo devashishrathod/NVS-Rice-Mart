@@ -2,6 +2,9 @@ const { asyncWrapper, sendSuccess } = require("../../utils");
 const { getOrder } = require("../../services/orders");
 
 exports.get = asyncWrapper(async (req, res) => {
-  const result = await getOrder(req.params?.id);
+  const result = await getOrder(req.params?.id, {
+    userId: req.userId,
+    role: req.role,
+  });
   return sendSuccess(res, 200, "Order fetched successfully", result);
 });

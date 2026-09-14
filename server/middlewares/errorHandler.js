@@ -1,4 +1,5 @@
 const { CustomError, sendError } = require("../utils");
+const { ERROR_CODES } = require("../constants");
 
 exports.errorHandler = (err, req, res, next) => {
   if (res.headersSent) return next(err);
@@ -10,13 +11,31 @@ exports.errorHandler = (err, req, res, next) => {
   }
   // ⭐ Handle Duplicate Key Error
   if (err.code === 11000) {
-    const field = Object.keys(err.keyValue)[0];
-    const value = err.keyValue[field];
+    const field = Object.keys(err.keyValue || {})[0];
+    const value = err.keyValue?.[field];
+    // Exclusive-territory guard: zipcode unique index race ko bhi wahi
+    // code do jo application-level check deta hai, taaki client ek hi
+    // case handle kare.
+    if (field === "zipcode") {
+      return sendError(
+        res,
+        409,
+        `Pincode ${value} is already assigned to another vendor`,
+        { zipcode: value },
+        ERROR_CODES.PINCODE_ALREADY_ASSIGNED,
+      );
+    }
     return sendError(res, 422, `${value} is already registered for ${field}`);
   }
   // ⭐ Handle CustomError
   if (err instanceof CustomError) {
-    return sendError(res, err.statusCode, err.message);
+    return sendError(
+      res,
+      err.statusCode,
+      err.message,
+      err.data || {},
+      err.code,
+    );
   }
   // ⭐ Default fallback
   const status = err.status || 500;

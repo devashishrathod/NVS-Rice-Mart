@@ -6,10 +6,18 @@ exports.createCategory = async (userId, payload, image) => {
   let { name, description, isActive } = payload;
   name = name?.toLowerCase();
   description = description?.toLowerCase();
-  const existingCategory = await Category.findOne({ name, isDeleted: false });
+
+  // Uniqueness ab VENDOR ke andar hai. Pehle globally unique tha — matlab
+  // doosra vendor "rice" naam ki category bana hi nahi sakta tha.
+  const existingCategory = await Category.findOne({
+    userId,
+    name,
+    isDeleted: false,
+  });
   if (existingCategory) {
-    throwError(400, "Category already exist with this name");
+    throwError(409, "You already have a category with this name");
   }
+
   let imageUrl;
   if (image) imageUrl = await uploadImage(image.tempFilePath);
   return await Category.create({

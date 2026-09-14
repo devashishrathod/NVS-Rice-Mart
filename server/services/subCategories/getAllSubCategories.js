@@ -1,8 +1,9 @@
 const mongoose = require("mongoose");
 const SubCategory = require("../../models/SubCategory");
 const { pagination } = require("../../utils");
+const { applyServiceScope } = require("../serviceAreas/applyServiceScope");
 
-exports.getAllSubCategories = async (query) => {
+exports.getAllSubCategories = async (query, serviceContext) => {
   let {
     page,
     limit,
@@ -19,8 +20,12 @@ exports.getAllSubCategories = async (query) => {
   page = page ? Number(page) : 1;
   limit = limit ? Number(limit) : 10;
   const match = { isDeleted: false };
-  if (categoryId) match.categoryId = new mongoose.Types.ObjectId(categoryId);
-  if (userId) match.userId = new mongoose.Types.ObjectId(userId);
+  if (categoryId && mongoose.Types.ObjectId.isValid(categoryId)) {
+    match.categoryId = new mongoose.Types.ObjectId(categoryId);
+  }
+  if (userId && mongoose.Types.ObjectId.isValid(userId)) {
+    match.userId = new mongoose.Types.ObjectId(userId);
+  }
   if (typeof isActive !== "undefined") {
     match.isActive = isActive === "true" || isActive === true;
   }
@@ -40,9 +45,13 @@ exports.getAllSubCategories = async (query) => {
       match.createdAt.$lte = d;
     }
   }
+  // 🔒 Scope sabse aakhir me
+  applyServiceScope(match, serviceContext);
+
   const pipeline = [{ $match: match }];
   pipeline.push({
     $project: {
+      userId: 1,
       name: 1,
       description: 1,
       image: 1,
@@ -56,5 +65,7 @@ exports.getAllSubCategories = async (query) => {
   const sortStage = {};
   sortStage[sortBy] = sortOrder === "asc" ? 1 : -1;
   pipeline.push({ $sort: sortStage });
-  return await pagination(SubCategory, pipeline, page, limit);
+  return await pagination(SubCategory, pipeline, page, limit, {
+    throwOnEmpty: serviceContext?.mode !== "CUSTOMER",
+  });
 };

@@ -1,16 +1,18 @@
 const Product = require("../../models/Product");
 const { throwError, validateObjectId } = require("../../utils");
+const { assertOwnership } = require("../assertOwnership");
 const { deleteImage } = require("../uploads");
 
-exports.deleteProduct = async (id) => {
+exports.deleteProduct = async (id, actor) => {
   validateObjectId(id, "Product Id");
-  const result = await Product.findById(id);
-  if (!result || result.isDeleted) throwError(404, "Product not found");
-  await deleteImage(result?.image);
-  result.image = null;
-  result.isDeleted = true;
-  result.isActive = false;
-  result.updatedAt = new Date();
-  await result.save();
+  const product = await Product.findById(id);
+  if (!product || product.isDeleted) throwError(404, "Product not found");
+  assertOwnership(product, actor, "product");
+
+  await deleteImage(product?.image);
+  product.image = null;
+  product.isDeleted = true;
+  product.isActive = false;
+  await product.save();
   return;
 };

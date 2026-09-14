@@ -32,7 +32,7 @@ exports.getAllUsers = async (query) => {
       { name: { $regex: new RegExp(search, "i") } },
       { email: { $regex: new RegExp(search, "i") } },
       { mobile: { $regex: new RegExp(search, "i") } },
-      { address: { $regex: new RegExp(search, "i") } },
+      // `address` field User se hata diya gaya — address `Location` me hai
     ];
   }
   if (fromDate || toDate) {
@@ -45,7 +45,10 @@ exports.getAllUsers = async (query) => {
     }
   }
 
-  const pipeline = [{ $match: match }];
+  // Aggregation schema ke `select: false` ko bypass karti hai, isliye
+  // password hash aur OTP yahan explicitly hatane padte hain — warna
+  // admin ko har user ka bcrypt hash chala jata tha.
+  const pipeline = [{ $match: match }, { $unset: ["password", "otp"] }];
   const sortStage = {};
   sortStage[sortBy] = sortOrder === "asc" ? 1 : -1;
   pipeline.push({ $sort: sortStage });

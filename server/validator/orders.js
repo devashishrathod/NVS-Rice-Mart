@@ -1,5 +1,10 @@
 const Joi = require("joi");
 const objectId = require("./validJoiObjectId");
+const {
+  ORDER_STATUS,
+  PAYMENT_STATUS,
+  PAYMENT_METHODS,
+} = require("../constants");
 
 exports.validateCreateOrder = (data) => {
   const schema = Joi.object({
@@ -8,11 +13,56 @@ exports.validateCreateOrder = (data) => {
       "any.invalid": "Invalid location ID format",
       "string.empty": "Location ID cannot be empty",
     }),
-    paymentMethod: Joi.string().required().valid("COD", "ONLINE").messages({
-      "any.required": "Payment method is required",
-      "string.base": "Payment method must be a string",
-      "any.only": "Payment method must be either COD or ONLINE",
-      "string.empty": "Payment method cannot be empty",
+    // Online payment abhi disabled hai — sirf COD accept hota hai.
+    paymentMethod: Joi.string()
+      .required()
+      .valid(PAYMENT_METHODS.COD)
+      .messages({
+        "any.required": "Payment method is required",
+        "string.base": "Payment method must be a string",
+        "any.only": "Only Cash on Delivery (COD) is available right now",
+        "string.empty": "Payment method cannot be empty",
+      }),
+  });
+  return schema.validate(data, {
+    abortEarly: false,
+    allowUnknown: false,
+    stripUnknown: true,
+  });
+};
+
+exports.validateUpdateOrderStatus = (data) => {
+  const schema = Joi.object({
+    status: Joi.string()
+      .valid(...Object.values(ORDER_STATUS))
+      .required()
+      .messages({ "any.required": "status is required" }),
+    note: Joi.string().max(300).allow("").optional(),
+    reason: Joi.string().max(300).allow("").optional(),
+  });
+  return schema.validate(data, {
+    abortEarly: false,
+    allowUnknown: false,
+    stripUnknown: true,
+  });
+};
+
+exports.validateCancelOrder = (data) => {
+  const schema = Joi.object({
+    reason: Joi.string().max(300).allow("").optional(),
+  });
+  return schema.validate(data, {
+    abortEarly: false,
+    allowUnknown: false,
+    stripUnknown: true,
+  });
+};
+
+exports.validateOrderPreview = (data) => {
+  const schema = Joi.object({
+    locationId: objectId().required().messages({
+      "any.required": "Location ID is required",
+      "any.invalid": "Invalid location ID format",
     }),
   });
   return schema.validate(data, {
@@ -32,14 +82,18 @@ exports.validateGetAllOrdersQuery = (payload) => {
     toDate: Joi.date().iso().optional(),
     orderId: objectId().optional(),
     userId: objectId().optional(),
+    vendorId: objectId().optional(),
+    orderNumber: Joi.string().optional(),
     cartId: objectId().optional(),
     locationId: objectId().optional(),
-    paymentMethod: Joi.string().valid("ONLINE", "COD").optional(),
+    paymentMethod: Joi.string()
+      .valid(...Object.values(PAYMENT_METHODS))
+      .optional(),
     status: Joi.string()
-      .valid("INITIATED", "PENDING", "CONFIRMED", "DELIVERED", "CANCELLED")
+      .valid(...Object.values(ORDER_STATUS))
       .optional(),
     paymentStatus: Joi.string()
-      .valid("NOT_REQUIRED", "INITIATED", "SUCCESS", "FAILED")
+      .valid(...Object.values(PAYMENT_STATUS))
       .optional(),
     razorpayOrderId: Joi.string().optional(),
     deliveryPincode: Joi.string().optional(),
@@ -59,10 +113,10 @@ exports.validateGetAllOrdersQuery = (payload) => {
 exports.validateUpdateOrder = (data) => {
   const schema = Joi.object({
     status: Joi.string()
-      .valid("INITIATED", "PENDING", "CONFIRMED", "DELIVERED", "CANCELLED")
+      .valid(...Object.values(ORDER_STATUS))
       .optional(),
     paymentStatus: Joi.string()
-      .valid("NOT_REQUIRED", "INITIATED", "SUCCESS", "FAILED")
+      .valid(...Object.values(PAYMENT_STATUS))
       .optional(),
   })
     .min(1)

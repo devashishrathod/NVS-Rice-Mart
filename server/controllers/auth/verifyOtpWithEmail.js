@@ -4,9 +4,10 @@ const { sendOtpVerificationSuccessMail } = require("../../helpers/nodeMailer");
 const { ROLES, LOGIN_TYPES } = require("../../constants");
 
 exports.verifyOtpWithEmail = asyncWrapper(async (req, res) => {
-  let { otp, email, role, fcmToken, loginType, currentScreen } = req.body;
+  let { otp, email, fcmToken, loginType, currentScreen } = req.body;
   email = email?.toLowerCase();
-  role = role?.toLowerCase() || ROLES.USER;
+  // 🔒 OTP flow sirf customer account ka hai — role body se nahi aata.
+  const role = ROLES.USER;
   loginType = loginType?.toLowerCase() || LOGIN_TYPES.EMAIL;
   currentScreen = currentScreen?.toUpperCase();
   let user = await User.findOne({ email, role, isDeleted: false }).select(

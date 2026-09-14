@@ -10,10 +10,11 @@ const {
 const { sendLoginOtpMail } = require("../../helpers/nodeMailer");
 
 exports.loginOrSignInWithEmail = asyncWrapper(async (req, res) => {
-  let { email, role, loginType } = req.body;
+  let { email, loginType } = req.body;
   if (!email) throwError(422, "Email is required");
   email = email?.toLowerCase();
-  role = role?.toLowerCase() || ROLES.USER;
+  // 🔒 OTP signup sirf customer banata hai — role body se nahi aata.
+  const role = ROLES.USER;
   loginType = loginType?.toLowerCase() || LOGIN_TYPES.EMAIL;
   const updatedData = {
     code: generateOTP(),
@@ -25,7 +26,8 @@ exports.loginOrSignInWithEmail = asyncWrapper(async (req, res) => {
   );
   if (!user) {
     isFirst = true;
-    user = User.create({
+    // `await` zaruri hai — bina iske double-submit pe duplicate user ban jate hain
+    user = await User.create({
       email,
       role,
       loginType,

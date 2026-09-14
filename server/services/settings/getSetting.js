@@ -1,10 +1,7 @@
 const Setting = require("../../models/Setting");
 
 exports.getSetting = async () => {
-  const setting = await Setting.findOne().populate({
-    path: "delivery.shopLocationId",
-    select:
-      "name shopOrBuildingNumber address area city district state country formattedAddress zipcode coordinates isProductAddress isDefault isActive isDeleted",
-  });
-  return setting;
+  // `shopLocationId` ab deprecated hai (pickup vendor ke default branch se
+  // aata hai), isliye populate hata diya — koi zaroorat nahi.
+  return await Setting.findOne().select("delivery createdAt updatedAt");
 };

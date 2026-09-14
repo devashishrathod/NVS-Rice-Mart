@@ -1,8 +1,14 @@
 const Order = require("../../models/Order");
-const { pagination } = require("../../utils");
+const { pagination, throwError } = require("../../utils");
 const { buildOrderPipeline, toObjectId } = require("./orderAggregation");
+const { buildOrderScope } = require("./assertOrderAccess");
 
-exports.getAllOrders = async (query) => {
+/**
+ * @param {object} query  request query
+ * @param {{ userId: any, role: string }} actor  logged-in user — iske bina
+ *        scoping nahi lagti, isliye ye REQUIRED hai.
+ */
+exports.getAllOrders = async (query, actor) => {
   let {
     page,
     limit,
@@ -12,6 +18,7 @@ exports.getAllOrders = async (query) => {
     toDate,
     orderId,
     userId,
+    vendorId,
     cartId,
     locationId,
     paymentMethod,
@@ -19,6 +26,7 @@ exports.getAllOrders = async (query) => {
     paymentStatus,
     razorpayOrderId,
     deliveryPincode,
+    orderNumber,
     minPayableAmount,
     maxPayableAmount,
     minSubTotal,
@@ -38,8 +46,17 @@ exports.getAllOrders = async (query) => {
   const oid = toObjectId(orderId);
   if (oid) match._id = oid;
 
+  // Sirf admin/staff hi doosron ke orders filter kar sakte hain. Customer/vendor
+  // ke liye ye params neeche scope se overwrite ho jayenge.
   const uoid = toObjectId(userId);
   if (uoid) match.userId = uoid;
+
+  const void_ = toObjectId(vendorId);
+  if (void_) match.vendorId = void_;
+
+  if (orderNumber) {
+    match.orderNumber = { $regex: new RegExp(orderNumber, "i") };
+  }
 
   const coid = toObjectId(cartId);
   if (coid) match.cartId = coid;
@@ -94,6 +111,12 @@ exports.getAllOrders = async (query) => {
     if (minDistanceKm !== undefined) match.distanceKm.$gte = Number(minDistanceKm);
     if (maxDistanceKm !== undefined) match.distanceKm.$lte = Number(maxDistanceKm);
   }
+
+  // 🔒 Role scoping SABSE AAKHIR me — taaki client ka koi bhi query param
+  // ise override na kar sake. Customer sirf apne, vendor sirf apne orders.
+  const scope = buildOrderScope(actor);
+  if (!scope) throwError(401, "Access Denied! Missing user context");
+  Object.assign(match, scope);
 
   const sortStage = {};
   sortStage[sortBy] = sortOrder === "asc" ? 1 : -1;

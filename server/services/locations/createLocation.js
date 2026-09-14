@@ -1,10 +1,15 @@
+const mongoose = require("mongoose");
 const User = require("../../models/User");
 const Location = require("../../models/Location");
+const { ROLES } = require("../../constants");
 const { validateObjectId, throwError } = require("../../utils");
 const { isValidZipCode } = require("../../validator/common");
-const { getLocationDetailsFromCoords } = require("../../helpers/locations");
 
-exports.createLocation = async (tokenUserId, payload) => {
+/**
+ * @param {{ userId: any, role: string }} actor logged-in user
+ * @param {object} payload
+ */
+exports.createLocation = async (actor, payload) => {
   let {
     userId,
     name,
@@ -18,26 +23,36 @@ exports.createLocation = async (tokenUserId, payload) => {
     zipcode,
     formattedAddress,
     coordinates,
-    isProductAddress,
-    isVendorAddress,
+    isDefault,
   } = payload;
-  let locationData = payload;
-  userId = userId || tokenUserId;
-  if (userId) validateObjectId(userId, "User Id");
+
+  // 🔒 Kisi DOOSRE user ke liye address sirf admin bana sakta hai. Pehle
+  // koi bhi payload me userId bhej ke dusre ke account me address daal
+  // sakta tha (aur uska default address hijack kar sakta tha).
+  if (userId && String(userId) !== String(actor.userId)) {
+    if (actor.role !== ROLES.ADMIN) {
+      throwError(403, "You can only add an address to your own account");
+    }
+    validateObjectId(userId, "User Id");
+  } else {
+    userId = actor.userId;
+  }
+
   const user = await User.findById(userId);
   if (!user || user.isDeleted) throwError(404, "User not found");
+
   country = country?.toLowerCase() || "india";
-  // if (!coordinates) {
   if (!address || !city || !district || !zipcode || !state || !coordinates) {
     throwError(
       422,
       "Please provide coordinates(Lat & Long), address, city, district, zipcode, state.",
     );
   }
-  if (zipcode && !isValidZipCode(country, zipcode)) {
+  if (!isValidZipCode(country, zipcode)) {
     throwError(422, `${zipcode} is not a valid ZIP/postal code for ${country}`);
   }
-  locationData = {
+
+  const locationData = {
     userId,
     name: name?.toLowerCase(),
     shopOrBuildingNumber: shopOrBuildingNumber?.toLowerCase(),
@@ -47,31 +62,48 @@ exports.createLocation = async (tokenUserId, payload) => {
     district: district?.toLowerCase(),
     zipcode,
     state: state?.toLowerCase(),
-    country: country?.toLowerCase(),
+    country,
     formattedAddress: formattedAddress
-      ? formattedAddress?.toLowerCase()
-      : `${address?.toLowerCase()}, ${city?.toLowerCase()}, ${district?.toLowerCase()}, ${state?.toLowerCase()}, ${zipcode}, ${country?.toLowerCase()}`.trim(),
+      ? formattedAddress.toLowerCase()
+      : `${address?.toLowerCase()}, ${city?.toLowerCase()}, ${district?.toLowerCase()}, ${state?.toLowerCase()}, ${zipcode}, ${country}`.trim(),
     coordinates,
-   // isProductAddress: isProductAddress || false,
-    isVendorAddress: isVendorAddress,
   };
-  // } else {
-  //   const [lat, lon] = coordinates;
-  //   const autoData = await getLocationDetailsFromCoords(lat, lon);
-  //   if (!autoData) throwError(422, "please provide correct coordinates");
-  //   locationData.coordinates = [autoData?.lat, autoData?.lon];
-  //   locationData.formattedAddress = autoData?.formattedAddress;
-  //   locationData.name = autoData?.name;
-  //   locationData.address = autoData?.address;
-  //   locationData.area = autoData?.area;
-  //   locationData.city = autoData?.city;
-  //   locationData.district = autoData?.district;
-  //   locationData.zipcode = autoData?.zipcode;
-  //   locationData.state = autoData?.state;
-  //   locationData.country = autoData?.country;
-  // }
-  const location = await Location.create(locationData);
-  user.locationId = location._id;
-  await user.save();
-  return location;
+
+  // Pehla address hamesha default banta hai; uske baad tabhi jab client
+  // explicitly bole.
+  const existingCount = await Location.countDocuments({
+    userId,
+    isDeleted: false,
+  });
+  const shouldBeDefault = existingCount === 0 || isDefault === true;
+
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  try {
+    if (shouldBeDefault) {
+      // single-default invariant
+      await Location.updateMany(
+        { userId, isDeleted: false, isDefault: true },
+        { $set: { isDefault: false } },
+        { session },
+      );
+    }
+    const [location] = await Location.create(
+      [{ ...locationData, isDefault: shouldBeDefault }],
+      { session },
+    );
+    if (shouldBeDefault) {
+      // `locationId` ab sirf default address ko point karta hai — pehle har
+      // naye address pe blindly overwrite ho jata tha.
+      user.locationId = location._id;
+      await user.save({ session });
+    }
+    await session.commitTransaction();
+    return location;
+  } catch (err) {
+    if (session.inTransaction()) await session.abortTransaction();
+    throw err;
+  } finally {
+    session.endSession();
+  }
 };

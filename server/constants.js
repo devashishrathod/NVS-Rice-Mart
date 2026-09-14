@@ -49,17 +49,90 @@ module.exports = {
     CLOTHING: "clothing",
   }),
 
+  // Location ab do tarah ki hoti hai — customer ka address, ya vendor ki branch
+  LOCATION_TYPES: Object.freeze({
+    CUSTOMER: "CUSTOMER",
+    VENDOR_BRANCH: "VENDOR_BRANCH",
+  }),
+
+  VENDOR_STATUS: Object.freeze({
+    APPROVED: "APPROVED",
+    SUSPENDED: "SUSPENDED",
+  }),
+
+  ORDER_STATUS: Object.freeze({
+    INITIATED: "INITIATED", // legacy — COD-only flow me naya order kabhi INITIATED nahi banta
+    PENDING: "PENDING", // vendor ke paas aa gaya
+    ACCEPTED: "ACCEPTED",
+    PACKED: "PACKED",
+    OUT_FOR_DELIVERY: "OUT_FOR_DELIVERY",
+    DELIVERED: "DELIVERED",
+    CANCELLED: "CANCELLED", // customer ne cancel kiya
+    REJECTED: "REJECTED", // vendor ne reject kiya
+    CONFIRMED: "CONFIRMED", // legacy — purane docs ke liye
+  }),
+
+  PAYMENT_METHODS: Object.freeze({
+    COD: "COD",
+    ONLINE: "ONLINE", // legacy — abhi disabled, purane orders ke liye enum me hai
+  }),
+
+  PAYMENT_STATUS: Object.freeze({
+    NOT_REQUIRED: "NOT_REQUIRED",
+    INITIATED: "INITIATED",
+    SUCCESS: "SUCCESS",
+    FAILED: "FAILED",
+  }),
+
+  // App/panel in codes pe branch karte hain — message badle to bhi code na badle
+  ERROR_CODES: Object.freeze({
+    PINCODE_REQUIRED: "PINCODE_REQUIRED",
+    PINCODE_NOT_SERVICEABLE: "PINCODE_NOT_SERVICEABLE",
+    PINCODE_ALREADY_ASSIGNED: "PINCODE_ALREADY_ASSIGNED",
+    PRODUCT_NOT_AVAILABLE_HERE: "PRODUCT_NOT_AVAILABLE_HERE",
+    CART_VENDOR_CONFLICT: "CART_VENDOR_CONFLICT",
+    VENDOR_NOT_SERVICEABLE: "VENDOR_NOT_SERVICEABLE",
+    VENDOR_PICKUP_MISSING: "VENDOR_PICKUP_MISSING",
+    STOCK_UNAVAILABLE: "STOCK_UNAVAILABLE",
+    OUT_OF_RADIUS: "OUT_OF_RADIUS",
+    MIN_ORDER_NOT_MET: "MIN_ORDER_NOT_MET",
+    INVALID_STATUS_TRANSITION: "INVALID_STATUS_TRANSITION",
+    CART_NOT_VERIFIED: "CART_NOT_VERIFIED",
+    FORBIDDEN: "FORBIDDEN",
+  }),
+
+  // Platform ke HARD LIMITS. Koi vendor inse upar nahi ja sakta.
+  // Tab lagte hain jab `Setting` doc me value na ho.
   DELIVERY_SETTINGS: Object.freeze({
-    BASE_CHARGE: 30,
-    PER_KM_RATE: 5,
-    PER_KG_RATE: 1.5,
-    DISTANCE_FACTOR: 4,
-    WEIGHT_FACTOR: 6,
-    MIN_DELIVERY_CHARGE: 40,
-    BASE_MAX_CHARGE: 150,
-    MAX_PER_KG_INCREMENT: 1.2,
-    MAX_PER_KM_INCREMENT: 4,
     MAX_RADIUS_KM: 50,
+    MAX_ALLOWED_DELIVERY_CHARGE: 200,
+  }),
+
+  /**
+   * Naye vendor ki delivery settings ka starting point.
+   *
+   * Values wahi hain jo purane global `Setting.delivery` me thi — taaki
+   * vendor ko khali form na mile, ready-made rates milein.
+   *
+   * 🔑 `isEnabled: false` — matlab ye values bhari hui hongi PAR charge ₹0
+   *    rahega jab tak vendor apne panel se toggle on na kare.
+   *
+   * `freeDeliveryAbove` / `maxRadiusKm` `null` hain:
+   *   - freeDeliveryAbove 0 hota to SAB free ho jata
+   *   - maxRadiusKm null = platform ka 50km lagega
+   */
+  DEFAULT_VENDOR_DELIVERY: Object.freeze({
+    isEnabled: false,
+    baseCharge: 30,
+    perKmRate: 5,
+    perKgRate: 1.5,
+    minDeliveryCharge: 40,
+    baseMaxCharge: 150,
+    maxPerKgIncrement: 1.2,
+    maxPerKmIncrement: 4,
+    freeDeliveryAbove: null,
+    minOrderAmount: 0,
+    maxRadiusKm: null,
   }),
 
   SHOP_ADDRESS: Object.freeze({

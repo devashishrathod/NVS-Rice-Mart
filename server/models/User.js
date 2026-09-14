@@ -8,9 +8,12 @@ const { locationField } = require("./validObjectId");
 
 const userSchema = new mongoose.Schema(
   {
+    // Customer ka default delivery address (Location.isDefault ke saath sync)
     locationId: locationField,
     name: { type: String },
-    address: { type: String },
+    // NOTE: `address` field hata diya — koi writer nahi tha
+    // (`updateUserById` me comment out) aur prod ke 1457 me se 0 docs me hai.
+    // Address `Location` collection me hai.
     dob: { type: Date },
     role: {
       type: String,
@@ -22,7 +25,9 @@ const userSchema = new mongoose.Schema(
       enum: [...Object.values(LOGIN_TYPES)],
       default: LOGIN_TYPES.PASSWORD,
     },
-    password: { type: String, required: true },
+    // `select: false` — password hash kabhi query me by-default na aaye.
+    // Jise chahiye (sirf login) wo `.select("+password")` maangta hai.
+    password: { type: String, required: true, select: false },
     email: {
       type: String,
       lowercase: true,
@@ -86,5 +91,12 @@ userSchema.pre("save", async function () {
   if (!this.isModified("password")) return;
   this.password = await bcrypt.hash(this.password, 10);
 });
+
+userSchema.index({ role: 1, isDeleted: 1 });
+// NOTE: `{ email, role }` aur `{ mobile, role }` ke partial-unique indexes
+// Phase 1 me banenge — pehle migration duplicate mobile (8088684570) clean
+// karega, warna index build fail hoga. Role ko key me isliye rakha hai kyunki
+// auth flows pehle se `{ mobile, role }` / `{ email, role }` se hi lookup
+// karte hain (ek hi mobile customer + vendor dono ka ho sakta hai).
 
 module.exports = mongoose.model("User", userSchema);
