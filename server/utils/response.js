@@ -2,7 +2,7 @@ exports.sendSuccess = (
   res,
   statusCode = 200,
   message = "Success",
-  data = {}
+  data = {},
 ) => {
   return res.status(statusCode).json({
     success: true,
@@ -11,15 +11,22 @@ exports.sendSuccess = (
   });
 };
 
+/**
+ * @param {string} [code] stable machine code (constants.ERROR_CODES) — clients
+ *        should branch on this, not on `message`.
+ */
 exports.sendError = (
   res,
   statusCode = 500,
   message = "Something went wrong",
-  errorData = {}
+  errorData = {},
+  code,
 ) => {
-  return res.status(statusCode).json({
+  const body = {
     success: false,
     message,
     error: errorData,
-  });
+  };
+  if (code) body.code = code;
+  return res.status(statusCode).json(body);
 };
