@@ -10,7 +10,12 @@ exports.deleteCart = async (userId) => {
   if (!cart) throwError(404, "Cart is empty or not found");
   cart.isDeleted = true;
   cart.items = [];
+  cart.vendorId = undefined;
   cart.subTotal = 0;
+  cart.totalWeight = 0;
+  cart.totalQuantity = 0;
+  cart.verifiedAt = null;
+  cart.deliveryZipcode = undefined;
   await cart.save();
   return;
 };

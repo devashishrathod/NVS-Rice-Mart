@@ -1,3 +1,4 @@
+const { recalcCartTotals } = require("./recalcCartTotals");
 const { addOrUpdateItem } = require("./addOrUpdateItems");
 const { removeItem } = require("./removeItem");
 const { deleteCart } = require("./deleteCart");
@@ -10,4 +11,5 @@ module.exports = {
   getCart,
   deleteCart,
   verifyCartByPincode,
+  recalcCartTotals,
 };

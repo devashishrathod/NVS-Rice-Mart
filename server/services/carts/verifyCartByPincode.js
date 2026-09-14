@@ -1,87 +1,171 @@
 const Cart = require("../../models/Cart");
 const Location = require("../../models/Location");
-const ProductLocation = require("../../models/ProductLocation");
+const Product = require("../../models/Product");
+const VendorProfile = require("../../models/VendorProfile");
+const VendorServiceArea = require("../../models/VendorServiceArea");
+const { ERROR_CODES } = require("../../constants");
 const { throwError } = require("../../utils");
+const { recalcCartTotals } = require("./recalcCartTotals");
 
+/**
+ * Checkout se pehle ka final gate:
+ *   1. cart ka vendor is pincode pe deliver karta hai?
+ *   2. har item abhi bhi available hai? stock kaafi hai?
+ *   3. price badla to nahi?
+ *
+ * @param {object} payload  `{ locationId }` prefer karo — server usi se
+ *        zipcode nikalta hai. `{ zipcode }` bhi chalta hai (address save
+ *        karne se pehle wala flow), par order place pe fir se `locationId`
+ *        se hi verify hota hai.
+ */
 exports.verifyCartByPincode = async (userId, payload) => {
-  const { zipcode } = payload;
+  const { locationId } = payload;
+  let zipcode = payload.zipcode ? String(payload.zipcode).trim() : undefined;
+
+  if (locationId) {
+    const loc = await Location.findOne({
+      _id: locationId,
+      userId,
+      isDeleted: false,
+    })
+      .select("zipcode")
+      .lean();
+    if (!loc) throwError(404, "Delivery address not found");
+    zipcode = loc.zipcode;
+  }
+  if (!zipcode) {
+    throwError(
+      400,
+      "Please select a delivery location",
+      ERROR_CODES.PINCODE_REQUIRED,
+    );
+  }
+
   const cart = await Cart.findOne({
     userId,
     isPurchased: false,
     isDeleted: false,
-  }).populate("items.productId");
-  if (!cart || cart.items.length === 0) {
+  });
+  if (!cart || !cart.items.length) {
     throwError(400, "Cart is empty or not found");
   }
-  const locations = await Location.find({
-    zipcode,
-    //  userId: { $exists: false }, //////////////
-    isProductAddress: true,
-    isActive: true,
-    isDeleted: false,
-  }).select("_id");
-  if (!locations.length) {
-    throwError(400, "Delivery not available for this zipcode");
+  if (!cart.vendorId) {
+    throwError(400, "Cart is not linked to a shop — please rebuild your cart");
   }
-  const locationIds = locations.map((l) => l._id);
-  const productIds = cart.items.map((i) => i.productId._id);
-  const productLocations = await ProductLocation.find({
-    productId: { $in: productIds },
-    locationId: { $in: locationIds },
-    isActive: true,
+
+  // ── 1. Vendor is pincode pe deliver karta hai? ───────────
+  const [area, profile] = await Promise.all([
+    VendorServiceArea.findOne({
+      zipcode,
+      vendorId: cart.vendorId,
+      isActive: true,
+      isDeleted: false,
+    })
+      .select("minOrderAmount etaMinutes")
+      .lean(),
+    VendorProfile.findOne({ vendorId: cart.vendorId })
+      .select("shopName delivery")
+      .lean(),
+  ]);
+
+  if (!area) {
+    throwError(
+      400,
+      `${profile?.shopName || "This shop"} does not deliver to ${zipcode}`,
+      ERROR_CODES.VENDOR_NOT_SERVICEABLE,
+      { zipcode, vendorId: cart.vendorId, shopName: profile?.shopName ?? null },
+    );
+  }
+
+  // `computeOrderPricing` ke saath same precedence — warna verify pass hoke
+  // order place pe fail ho jata.
+  const minOrderAmount = Number(
+    area.minOrderAmount ?? profile?.delivery?.minOrderAmount ?? 0,
+  );
+
+  // ── 2 & 3. Items — price/stock ka single source `Product` hai ──
+  const ids = cart.items.map((i) => i.productId);
+  const products = await Product.find({
+    _id: { $in: ids },
+    userId: cart.vendorId,
     isDeleted: false,
-  });
-  const plMap = {};
-  productLocations.forEach((pl) => {
-    plMap[pl.productId.toString()] = pl;
-  });
+    isActive: true,
+  })
+    .select("name generalPrice stockQuantity weightInKg isOutOfStock")
+    .lean();
+  const byId = new Map(products.map((p) => [String(p._id), p]));
+
   const unavailableItems = [];
   const priceChanged = [];
-  let newSubTotal = 0;
+
   for (const item of cart.items) {
-    const pl = plMap[item.productId._id.toString()];
-    if (!pl) {
+    const p = byId.get(String(item.productId));
+    if (!p || p.isOutOfStock || p.stockQuantity <= 0) {
       unavailableItems.push({
-        productId: item.productId._id,
-        reason: "Not deliverable to this zipcode",
+        productId: item.productId,
+        name: p?.name ?? null,
+        reason: "No longer available",
       });
       continue;
     }
-    if (item.quantity > pl.stockQuantity) {
+    if (item.quantity > p.stockQuantity) {
       unavailableItems.push({
-        productId: item.productId._id,
-        reason: `Only ${pl.stockQuantity} available`,
+        productId: item.productId,
+        name: p.name,
+        reason: `Only ${p.stockQuantity} available`,
+        available: p.stockQuantity,
       });
       continue;
     }
-    if (item.priceSnapshot !== pl.price) {
+    if (item.priceSnapshot !== p.generalPrice) {
       priceChanged.push({
-        productId: item.productId._id,
+        productId: item.productId,
+        name: p.name,
         oldPrice: item.priceSnapshot,
-        newPrice: pl.price,
+        newPrice: p.generalPrice,
       });
-      item.priceSnapshot = pl.price;
+      item.priceSnapshot = p.generalPrice;
     }
+    item.productWeight = p.weightInKg;
+    item.itemWeight = p.weightInKg * item.quantity;
     item.resolvedPincode = zipcode;
-    newSubTotal += pl.price * item.quantity;
   }
+
   if (unavailableItems.length) {
-    return {
-      status: "FAILED",
-      unavailableItems,
-    };
+    // Cart save nahi kar rahe — customer pehle ye items hataye/adjust kare
+    return { status: "FAILED", zipcode, unavailableItems };
   }
-  cart.subTotal = newSubTotal;
+
+  recalcCartTotals(cart);
+
+  // Min-order check `verifiedAt` set karne se PEHLE — warna cart "verified"
+  // mark ho jata aur checkout pe jaake fail hota.
+  if (minOrderAmount && cart.subTotal < minOrderAmount) {
+    throwError(
+      400,
+      `Minimum order amount is ₹${minOrderAmount}`,
+      ERROR_CODES.MIN_ORDER_NOT_MET,
+      { minOrderAmount, subTotal: cart.subTotal },
+    );
+  }
+
+  cart.deliveryZipcode = zipcode;
+  cart.verifiedAt = new Date();
   await cart.save();
+
   if (priceChanged.length) {
     return {
       status: "PRICE_CHANGED",
+      zipcode,
       priceChanged,
-      subTotal: newSubTotal,
+      subTotal: cart.subTotal,
+      etaMinutes: area.etaMinutes ?? null,
     };
   }
   return {
     status: "OK",
-    subTotal: newSubTotal,
+    zipcode,
+    subTotal: cart.subTotal,
+    etaMinutes: area.etaMinutes ?? null,
   };
 };
