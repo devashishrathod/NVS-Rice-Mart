@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 const SubCategory = require("../../models/SubCategory");
-const { pagination } = require("../../utils");
+const { pagination, escapeRegex } = require("../../utils");
 const { applyServiceScope } = require("../serviceAreas/applyServiceScope");
 
 exports.getAllSubCategories = async (query, serviceContext) => {
@@ -29,11 +29,11 @@ exports.getAllSubCategories = async (query, serviceContext) => {
   if (typeof isActive !== "undefined") {
     match.isActive = isActive === "true" || isActive === true;
   }
-  if (name) match.name = { $regex: new RegExp(name, "i") };
+  if (name) match.name = { $regex: new RegExp(escapeRegex(name), "i") };
   if (search) {
     match.$or = [
-      { name: { $regex: new RegExp(search, "i") } },
-      { description: { $regex: new RegExp(search, "i") } },
+      { name: { $regex: new RegExp(escapeRegex(search), "i") } },
+      { description: { $regex: new RegExp(escapeRegex(search), "i") } },
     ];
   }
   if (fromDate || toDate) {

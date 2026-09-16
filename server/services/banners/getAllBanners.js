@@ -1,5 +1,5 @@
 const Banner = require("../../models/Banner");
-const { pagination } = require("../../utils");
+const { pagination, escapeRegex } = require("../../utils");
 
 exports.getAllBanners = async (query) => {
   let {
@@ -19,11 +19,11 @@ exports.getAllBanners = async (query) => {
   if (typeof isActive !== "undefined") {
     match.isActive = isActive === "true" || isActive === true;
   }
-  if (name) match.name = { $regex: new RegExp(name, "i") };
+  if (name) match.name = { $regex: new RegExp(escapeRegex(name), "i") };
   if (search) {
     match.$or = [
-      { name: { $regex: new RegExp(search, "i") } },
-      { description: { $regex: new RegExp(search, "i") } },
+      { name: { $regex: new RegExp(escapeRegex(search), "i") } },
+      { description: { $regex: new RegExp(escapeRegex(search), "i") } },
     ];
   }
   if (fromDate || toDate) {

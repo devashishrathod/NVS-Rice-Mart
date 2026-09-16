@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 const Product = require("../../models/Product");
-const { pagination } = require("../../utils");
+const { pagination, escapeRegex } = require("../../utils");
 const { applyServiceScope } = require("../serviceAreas/applyServiceScope");
 
 exports.getAllProducts = async (query, serviceContext) => {
@@ -53,14 +53,14 @@ exports.getAllProducts = async (query, serviceContext) => {
     SKU = SKU?.toUpperCase();
     match.SKU = SKU;
   }
-  if (name) match.name = { $regex: new RegExp(name, "i") };
-  if (brand) match.brand = { $regex: new RegExp(brand, "i") };
+  if (name) match.name = { $regex: new RegExp(escapeRegex(name), "i") };
+  if (brand) match.brand = { $regex: new RegExp(escapeRegex(brand), "i") };
   if (search) {
     match.$or = [
-      { name: { $regex: new RegExp(search, "i") } },
-      { brand: { $regex: new RegExp(search, "i") } },
-      { description: { $regex: new RegExp(search, "i") } },
-      { SKU: { $regex: new RegExp(search, "i") } },
+      { name: { $regex: new RegExp(escapeRegex(search), "i") } },
+      { brand: { $regex: new RegExp(escapeRegex(search), "i") } },
+      { description: { $regex: new RegExp(escapeRegex(search), "i") } },
+      { SKU: { $regex: new RegExp(escapeRegex(search), "i") } },
     ];
   }
   if (fromDate || toDate) {

@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 const Category = require("../../models/Category");
-const { pagination } = require("../../utils");
+const { pagination, escapeRegex } = require("../../utils");
 const { applyServiceScope } = require("../serviceAreas/applyServiceScope");
 
 /**
@@ -31,11 +31,11 @@ exports.getAllCategories = async (query, serviceContext) => {
   if (userId && mongoose.Types.ObjectId.isValid(userId)) {
     match.userId = new mongoose.Types.ObjectId(userId);
   }
-  if (name) match.name = { $regex: new RegExp(name, "i") };
+  if (name) match.name = { $regex: new RegExp(escapeRegex(name), "i") };
   if (search) {
     match.$or = [
-      { name: { $regex: new RegExp(search, "i") } },
-      { description: { $regex: new RegExp(search, "i") } },
+      { name: { $regex: new RegExp(escapeRegex(search), "i") } },
+      { description: { $regex: new RegExp(escapeRegex(search), "i") } },
     ];
   }
   if (fromDate || toDate) {

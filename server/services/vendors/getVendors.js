@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
 const VendorProfile = require("../../models/VendorProfile");
 const { LOCATION_TYPES } = require("../../constants");
-const { pagination, throwError, validateObjectId } = require("../../utils");
+const { pagination, throwError, validateObjectId, escapeRegex } = require("../../utils");
 
 /**
  * Counts ko `$lookup` + `$size` se nikal rahe hain. Vendors ki sankhya chhoti
@@ -125,12 +125,12 @@ exports.getAllVendors = async (query = {}) => {
 
   const match = { isDeleted: false };
   if (query.status) match.status = query.status;
-  if (query.shopName) match.shopName = { $regex: new RegExp(query.shopName, "i") };
+  if (query.shopName) match.shopName = { $regex: new RegExp(escapeRegex(query.shopName), "i") };
 
   const pipeline = [{ $match: match }, ...withCounts()];
 
   if (query.search) {
-    const regex = new RegExp(query.search, "i");
+    const regex = new RegExp(escapeRegex(query.search), "i");
     pipeline.push({
       $match: {
         $or: [
