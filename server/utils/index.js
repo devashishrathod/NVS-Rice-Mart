@@ -5,6 +5,14 @@ const { pagination } = require("./pagination");
 const { generateOTP } = require("./generateOTP");
 const { validateObjectId } = require("./validateObjectId");
 const { cleanJoiError } = require("./cleanJoiError");
+const {
+  toTitleCase,
+  toSentenceCase,
+  normalizeForCompare,
+  ciExact,
+  escapeRegex,
+  STATE_ABBR,
+} = require("./textCase");
 
 module.exports = {
   CustomError,
@@ -16,4 +24,10 @@ module.exports = {
   pagination,
   generateOTP,
   validateObjectId,
+  toTitleCase,
+  toSentenceCase,
+  normalizeForCompare,
+  ciExact,
+  escapeRegex,
+  STATE_ABBR,
 };
