@@ -1,7 +1,13 @@
 const { default: mongoose } = require("mongoose");
 const Location = require("../../models/Location");
 const { ROLES } = require("../../constants");
-const { pagination, validateObjectId, throwError } = require("../../utils");
+const {
+  pagination,
+  validateObjectId,
+  throwError,
+  ciExact,
+  escapeRegex,
+} = require("../../utils");
 
 /**
  * @param {object} query
@@ -44,34 +50,44 @@ exports.getAllLocations = async (query, actor) => {
   if (typeof isDefault !== "undefined") {
     match.isDefault = isDefault === "true" || isDefault === true;
   }
-  if (city) match.city = city?.toLowerCase();
-  if (district) match.district = district?.toLowerCase();
-  if (state) match.state = state?.toLowerCase();
-  if (zipcode) match.zipcode = zipcode?.toLowerCase();
-  if (country) match.country = country?.toLowerCase();
+  // 🔤 Exact-match filters ab CASE-INSENSITIVE hain. Pehle ye query value ko
+  //    lowercase karke exact match karte the — wo sirf isliye chalta tha ki
+  //    DB me saara data lowercase pada tha. Ab "Davangere" save hota hai,
+  //    isliye `?city=davangere` bhi usi doc ko mile.
+  if (city) match.city = ciExact(city);
+  if (district) match.district = ciExact(district);
+  if (state) match.state = ciExact(state);
+  if (country) match.country = ciExact(country);
+  // `zipcode` digits hai — casing ka sawaal hi nahi. Plain exact match
+  // rakha hai taaki `{ zipcode: 1, isDeleted: 1 }` index use hota rahe
+  // (regex us index ko bekaar kar deta).
+  if (zipcode) match.zipcode = String(zipcode).trim();
   if (userId) {
     validateObjectId(userId, "User Id");
     match.userId = new mongoose.Types.ObjectId(userId);
   }
-  if (name) match.name = { $regex: new RegExp(name, "i") };
-  if (address) match.address = { $regex: new RegExp(address, "i") };
-  if (area) match.area = { $regex: new RegExp(area, "i") };
+
+  // 🔒 `escapeRegex` — pehle user ka input seedha `new RegExp()` me jata tha.
+  //    `?search=(a+)+$` jaisa input catastrophic backtracking laga sakta tha.
+  const like = (v) => ({ $regex: new RegExp(escapeRegex(v), "i") });
+
+  if (name) match.name = like(name);
+  if (address) match.address = like(address);
+  if (area) match.area = like(area);
   if (shopOrBuildingNumber) {
-    match.shopOrBuildingNumber = {
-      $regex: new RegExp(shopOrBuildingNumber, "i"),
-    };
+    match.shopOrBuildingNumber = like(shopOrBuildingNumber);
   }
   if (search) {
     match.$or = [
-      { name: { $regex: new RegExp(search, "i") } },
-      { shopOrBuildingNumber: { $regex: new RegExp(search, "i") } },
-      { address: { $regex: new RegExp(search, "i") } },
-      { area: { $regex: new RegExp(search, "i") } },
-      { city: { $regex: new RegExp(search, "i") } },
-      { district: { $regex: new RegExp(search, "i") } },
-      { state: { $regex: new RegExp(search, "i") } },
-      { zipcode: { $regex: new RegExp(search, "i") } },
-      { country: { $regex: new RegExp(search, "i") } },
+      { name: like(search) },
+      { shopOrBuildingNumber: like(search) },
+      { address: like(search) },
+      { area: like(search) },
+      { city: like(search) },
+      { district: like(search) },
+      { state: like(search) },
+      { zipcode: like(search) },
+      { country: like(search) },
     ];
   }
   if (fromDate || toDate) {
