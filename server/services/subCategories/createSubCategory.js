@@ -1,6 +1,11 @@
 const Category = require("../../models/Category");
 const SubCategory = require("../../models/SubCategory");
-const { throwError } = require("../../utils");
+const {
+  throwError,
+  toTitleCase,
+  toSentenceCase,
+  ciExact,
+} = require("../../utils");
 const { assertOwnership } = require("../assertOwnership");
 const { uploadImage } = require("../uploads");
 
@@ -11,11 +16,11 @@ exports.createSubCategory = async (actor, categoryId, payload, image) => {
   assertOwnership(category, actor, "category");
 
   let { name, description, isActive } = payload;
-  name = name?.toLowerCase();
-  description = description?.toLowerCase();
+  name = toTitleCase(name);
+  description = toSentenceCase(description);
 
   const existingSubCategory = await SubCategory.findOne({
-    name,
+    name: ciExact(name), // casing ab save hoti hai — duplicate CI check
     categoryId,
     isDeleted: false,
   });
