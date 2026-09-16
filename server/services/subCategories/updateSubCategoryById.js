@@ -1,6 +1,12 @@
 const SubCategory = require("../../models/SubCategory");
 const Category = require("../../models/Category");
-const { throwError, validateObjectId } = require("../../utils");
+const {
+  throwError,
+  validateObjectId,
+  toTitleCase,
+  toSentenceCase,
+  ciExact,
+} = require("../../utils");
 const { assertOwnership } = require("../assertOwnership");
 const { uploadImage, deleteImage } = require("../uploads");
 
@@ -26,10 +32,10 @@ exports.updateSubCategoryById = async (id, payload, image, actor) => {
       subcategory.categoryId = categoryId;
     }
     if (name) {
-      name = name.toLowerCase();
+      name = toTitleCase(name);
       const existingSubCategorywithCategory = await SubCategory.findOne({
         _id: { $ne: id },
-        name,
+        name: ciExact(name),
         categoryId: subcategory?.categoryId,
         isDeleted: false,
       });
@@ -44,7 +50,7 @@ exports.updateSubCategoryById = async (id, payload, image, actor) => {
     if (name && categoryId) {
       const existingSubCategorywithCategory = await SubCategory.findOne({
         _id: { $ne: id },
-        name,
+        name: ciExact(name),
         categoryId,
         isDeleted: false,
       });
@@ -59,7 +65,7 @@ exports.updateSubCategoryById = async (id, payload, image, actor) => {
       // Pehle ye toggle karta tha (client jo bhejta tha usse ulta)
       subcategory.isActive = isActive === true || isActive === "true";
     }
-    if (description) subcategory.description = description?.toLowerCase() || "";
+    if (description) subcategory.description = toSentenceCase(description) || "";
   }
   if (image) {
     if (subcategory.image) await deleteImage(subcategory.image);

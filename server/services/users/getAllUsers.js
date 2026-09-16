@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 const User = require("../../models/User");
-const { pagination } = require("../../utils");
+const { pagination, escapeRegex } = require("../../utils");
 
 exports.getAllUsers = async (query) => {
   let {
@@ -24,14 +24,14 @@ exports.getAllUsers = async (query) => {
     match.isActive = isActive === "true" || isActive === true;
   }
   if (role) match.role = role;
-  if (name) match.name = { $regex: new RegExp(name, "i") };
-  if (email) match.email = { $regex: new RegExp(email, "i") };
-  if (mobile) match.mobile = { $regex: new RegExp(mobile, "i") };
+  if (name) match.name = { $regex: new RegExp(escapeRegex(name), "i") };
+  if (email) match.email = { $regex: new RegExp(escapeRegex(email), "i") };
+  if (mobile) match.mobile = { $regex: new RegExp(escapeRegex(mobile), "i") };
   if (search) {
     match.$or = [
-      { name: { $regex: new RegExp(search, "i") } },
-      { email: { $regex: new RegExp(search, "i") } },
-      { mobile: { $regex: new RegExp(search, "i") } },
+      { name: { $regex: new RegExp(escapeRegex(search), "i") } },
+      { email: { $regex: new RegExp(escapeRegex(search), "i") } },
+      { mobile: { $regex: new RegExp(escapeRegex(search), "i") } },
       // `address` field User se hata diya gaya — address `Location` me hai
     ];
   }

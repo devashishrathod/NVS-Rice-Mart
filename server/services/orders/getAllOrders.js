@@ -1,5 +1,5 @@
 const Order = require("../../models/Order");
-const { pagination, throwError } = require("../../utils");
+const { pagination, throwError, escapeRegex } = require("../../utils");
 const { buildOrderPipeline, toObjectId } = require("./orderAggregation");
 const { buildOrderScope } = require("./assertOrderAccess");
 
@@ -55,7 +55,7 @@ exports.getAllOrders = async (query, actor) => {
   if (void_) match.vendorId = void_;
 
   if (orderNumber) {
-    match.orderNumber = { $regex: new RegExp(orderNumber, "i") };
+    match.orderNumber = { $regex: new RegExp(escapeRegex(orderNumber), "i") };
   }
 
   const coid = toObjectId(cartId);
@@ -68,10 +68,10 @@ exports.getAllOrders = async (query, actor) => {
   if (status) match.status = status;
   if (paymentStatus) match.paymentStatus = paymentStatus;
   if (razorpayOrderId) {
-    match.razorpayOrderId = { $regex: new RegExp(razorpayOrderId, "i") };
+    match.razorpayOrderId = { $regex: new RegExp(escapeRegex(razorpayOrderId), "i") };
   }
   if (deliveryPincode) {
-    match.deliveryPincode = { $regex: new RegExp(deliveryPincode, "i") };
+    match.deliveryPincode = { $regex: new RegExp(escapeRegex(deliveryPincode), "i") };
   }
 
   if (fromDate || toDate) {
@@ -124,7 +124,7 @@ exports.getAllOrders = async (query, actor) => {
   const pipeline = buildOrderPipeline({ match, sortStage });
 
   if (search) {
-    const regex = new RegExp(search, "i");
+    const regex = new RegExp(escapeRegex(search), "i");
     pipeline.splice(3, 0, {
       $match: {
         $or: [

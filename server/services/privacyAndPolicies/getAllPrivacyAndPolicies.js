@@ -1,5 +1,5 @@
 const PrivacyAndPolicy = require("../../models/Privacy&Policy");
-const { pagination } = require("../../utils");
+const { pagination, escapeRegex } = require("../../utils");
 
 exports.getAllPrivacyAndPolicies = async (query) => {
   let {
@@ -19,11 +19,11 @@ exports.getAllPrivacyAndPolicies = async (query) => {
   if (typeof isActive !== "undefined") {
     match.isActive = isActive === "true" || isActive === true;
   }
-  if (title) match.title = { $regex: new RegExp(title, "i") };
+  if (title) match.title = { $regex: new RegExp(escapeRegex(title), "i") };
   if (search) {
     match.$or = [
-      { title: { $regex: new RegExp(search, "i") } },
-      { description: { $regex: new RegExp(search, "i") } },
+      { title: { $regex: new RegExp(escapeRegex(search), "i") } },
+      { description: { $regex: new RegExp(escapeRegex(search), "i") } },
     ];
   }
   if (fromDate || toDate) {

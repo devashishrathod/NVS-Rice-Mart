@@ -1,5 +1,11 @@
 const TermAndCondition = require("../../models/Terms&Condition");
-const { throwError, validateObjectId } = require("../../utils");
+const {
+  throwError,
+  validateObjectId,
+  toTitleCase,
+  toSentenceCase,
+  ciExact,
+} = require("../../utils");
 
 exports.updateTermAndCondition = async (id, payload) => {
   validateObjectId(id, "TermAndCondition Id");
@@ -14,10 +20,10 @@ exports.updateTermAndCondition = async (id, payload) => {
     result.isActive = isActive === true || isActive === "true";
   }
   if (title) {
-    title = title.toLowerCase();
+    title = toTitleCase(title);
     const existing = await TermAndCondition.findOne({
       _id: { $ne: id },
-      title,
+      title: ciExact(title),
       isDeleted: false,
     });
     if (existing) {
@@ -25,7 +31,7 @@ exports.updateTermAndCondition = async (id, payload) => {
     }
     result.title = title;
   }
-  if (description) result.description = description?.toLowerCase();
+  if (description) result.description = toSentenceCase(description);
   result.updatedAt = new Date();
   await result.save();
   return result;

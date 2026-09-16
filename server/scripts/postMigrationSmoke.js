@@ -178,7 +178,12 @@ const run = async () => {
     ok(`30 products dikhe (mila ${r.data?.total})`, r.data?.total === 30);
     ok("sab ek hi vendor ke", (r.data?.data || []).every((p) => String(p.userId) === String(vendorUser._id)));
 
-    const bell = (r.data?.data || []).find((p) => p.name === "bell");
+    // Case-insensitive — product names ab proper case me save hote hain
+    // ("bell" → "Bell"), runbook §10. Ye check naam ki casing ke baare me
+    // nahi hai, product ke maujood hone aur uske price ke baare me hai.
+    const bell = (r.data?.data || []).find(
+      (p) => String(p.name).toLowerCase() === "bell",
+    );
     ok("`bell` product dikha", !!bell);
     ok("🔑 bell ka price ₹1100 (₹950 se update hua)", bell?.generalPrice === 1100,
       `mila ${bell?.generalPrice}`);

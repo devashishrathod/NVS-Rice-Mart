@@ -1,7 +1,13 @@
 const Product = require("../../models/Product");
 const SubCategory = require("../../models/SubCategory");
 const { generateSKU } = require("../../helpers/products");
-const { throwError, validateObjectId } = require("../../utils");
+const {
+  throwError,
+  validateObjectId,
+  toTitleCase,
+  toSentenceCase,
+  ciExact,
+} = require("../../utils");
 const { assertOwnership } = require("../assertOwnership");
 const { uploadImage } = require("../uploads");
 const { PRODUCT_TYPES } = require("../../constants");
@@ -30,17 +36,22 @@ exports.createProduct = async (actor, payload, image) => {
   // usi doosre vendor ka ho jata.
   assertOwnership(subCategory, actor, "sub-category");
 
-  name = name?.toLowerCase();
-  brand = brand?.toLowerCase();
+  name = toTitleCase(name);
+  brand = toTitleCase(brand);
+  // 🔒 `type` ENUM hai (`PRODUCT_TYPES`) — ye lowercase normalization
+  //    functional hai, cosmetic nahi. Hata dete to client ka "GROCERY"
+  //    mongoose enum validation me fail ho jata.
   type = type?.toLowerCase() || PRODUCT_TYPES.GROCERY;
-  description = description?.toLowerCase();
+  description = toSentenceCase(description);
 
   // Duplicate check ab vendor ke andar — pehle global tha, isliye doosra
   // vendor wahi product list hi nahi kar sakta tha.
+  // `name`/`brand` pe `ciExact` — casing ab save hoti hai, isliye
+  // "Basmati" aur "basmati" ek hi product maane jayein.
   const existingProduct = await Product.findOne({
     userId: subCategory.userId,
-    name,
-    brand,
+    name: ciExact(name),
+    brand: ciExact(brand),
     subCategoryId,
     type,
     weightInKg,

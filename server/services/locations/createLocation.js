@@ -1,9 +1,10 @@
 const mongoose = require("mongoose");
 const User = require("../../models/User");
 const Location = require("../../models/Location");
-const { ROLES } = require("../../constants");
-const { validateObjectId, throwError } = require("../../utils");
+const { ROLES, DEFAULT_COUNTRY } = require("../../constants");
+const { validateObjectId, throwError, toTitleCase } = require("../../utils");
 const { isValidZipCode } = require("../../validator/common");
+const { buildFormattedAddress } = require("../../helpers/locations");
 
 /**
  * @param {{ userId: any, role: string }} actor logged-in user
@@ -41,31 +42,42 @@ exports.createLocation = async (actor, payload) => {
   const user = await User.findById(userId);
   if (!user || user.isDeleted) throwError(404, "User not found");
 
-  country = country?.toLowerCase() || "india";
-  if (!address || !city || !district || !zipcode || !state || !coordinates) {
+  // Display fields ab lowercase NAHI hote — "Davangere" waise hi save hota
+  // hai. Filter/duplicate-check case-insensitive ho chuke hain.
+  country = toTitleCase(country) || DEFAULT_COUNTRY;
+  // `district` yahan se hata diya gaya — ab optional hai (jaise `name`,
+  // `shopOrBuildingNumber`, `area`, `country` pehle se the). Baaki paanch
+  // required hi hain: inke bina delivery serviceability resolve nahi hoti.
+  if (!address || !city || !zipcode || !state || !coordinates) {
     throwError(
       422,
-      "Please provide coordinates(Lat & Long), address, city, district, zipcode, state.",
+      "Please provide coordinates(Lat & Long), address, city, zipcode, state.",
     );
   }
   if (!isValidZipCode(country, zipcode)) {
     throwError(422, `${zipcode} is not a valid ZIP/postal code for ${country}`);
   }
 
+  const cased = {
+    name: toTitleCase(name),
+    shopOrBuildingNumber: toTitleCase(shopOrBuildingNumber),
+    address: toTitleCase(address),
+    area: toTitleCase(area),
+    city: toTitleCase(city),
+    district: toTitleCase(district),
+    state: toTitleCase(state),
+  };
+
   const locationData = {
     userId,
-    name: name?.toLowerCase(),
-    shopOrBuildingNumber: shopOrBuildingNumber?.toLowerCase(),
-    address: address?.toLowerCase(),
-    area: area?.toLowerCase(),
-    city: city?.toLowerCase(),
-    district: district?.toLowerCase(),
+    ...cased,
     zipcode,
-    state: state?.toLowerCase(),
     country,
-    formattedAddress: formattedAddress
-      ? formattedAddress.toLowerCase()
-      : `${address?.toLowerCase()}, ${city?.toLowerCase()}, ${district?.toLowerCase()}, ${state?.toLowerCase()}, ${zipcode}, ${country}`.trim(),
+    // Client ne khud bheja to wahi, warna banaya hua. `buildFormattedAddress`
+    // sirf address/city/district/state padhta hai — baaki keys ignore.
+    formattedAddress:
+      toTitleCase(formattedAddress) ||
+      buildFormattedAddress({ ...cased, zipcode, country }),
     coordinates,
   };
 

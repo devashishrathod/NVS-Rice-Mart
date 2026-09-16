@@ -1,7 +1,13 @@
 const Product = require("../../models/Product");
 const SubCategory = require("../../models/SubCategory");
 const { generateSKU } = require("../../helpers/products");
-const { throwError, validateObjectId } = require("../../utils");
+const {
+  throwError,
+  validateObjectId,
+  toTitleCase,
+  toSentenceCase,
+  ciExact,
+} = require("../../utils");
 const { assertOwnership } = require("../assertOwnership");
 const { uploadImage, deleteImage } = require("../uploads");
 
@@ -46,10 +52,11 @@ exports.updateProduct = async (productId, payload, image, actor) => {
       updatedData.subCategoryId = subCategoryId;
       updatedData.categoryId = nextSubCategory.categoryId;
     }
-    if (name) updatedData.name = name.toLowerCase();
-    if (brand) updatedData.brand = brand.toLowerCase();
+    if (name) updatedData.name = toTitleCase(name);
+    if (brand) updatedData.brand = toTitleCase(brand);
+    // 🔒 `type` ENUM hai — lowercase normalization functional hai
     if (type) updatedData.type = type.toLowerCase();
-    if (description) updatedData.description = description.toLowerCase();
+    if (description) updatedData.description = toSentenceCase(description);
     if (generalPrice !== undefined) updatedData.generalPrice = generalPrice;
     if (stockQuantity !== undefined) updatedData.stockQuantity = stockQuantity;
     if (weightInKg !== undefined) updatedData.weightInKg = weightInKg;
@@ -71,6 +78,10 @@ exports.updateProduct = async (productId, payload, image, actor) => {
       _id: { $ne: productId },
       userId: product.userId,
       ...merged,
+      // `merged` ke plain values SKU banane me jate hain, isliye unhe waisa
+      // hi chhoda — query me `name`/`brand` ko case-insensitive kar diya.
+      name: ciExact(merged.name),
+      brand: ciExact(merged.brand),
       isDeleted: false,
     });
     if (existingProduct) {

@@ -1,14 +1,23 @@
 const User = require("../../models/User");
 const { ROLES, LOGIN_TYPES } = require("../../constants");
-const { asyncWrapper, sendSuccess, throwError } = require("../../utils");
+const {
+  asyncWrapper,
+  sendSuccess,
+  throwError,
+  toTitleCase,
+} = require("../../utils");
 
 exports.register = asyncWrapper(async (req, res) => {
   let { name, email, password, mobile, loginType, fcmToken } = req.body;
   if (!mobile && !email) {
     throwError(422, "Email or Mobile number any one of this is required");
   }
+  // 🔒 `email` lowercase HI rehta hai — neeche `findOne({ email })` exact
+  //    match karta hai. Hata dete to "Foo@x.com" se banaya account
+  //    "foo@x.com" se login nahi kar pata aur duplicate ban jate.
   email = email?.toLowerCase();
-  name = name?.toLowerCase();
+  // `name` display field hai — ab proper case me save hota hai.
+  name = toTitleCase(name);
   // 🔒 Public signup hamesha customer banata hai. `role` body se NAHI aata —
   // warna koi bhi {"role":"admin"} bhej ke admin ban jata.
   // Vendor sirf POST /vendors/create (isAdmin) se banega.

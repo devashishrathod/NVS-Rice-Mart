@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const { userField, locationField } = require("./validObjectId");
+const { DEFAULT_COUNTRY } = require("../constants");
 
 /**
  * "Kaun sa vendor kaun se pincode pe deliver karta hai."
@@ -19,10 +20,14 @@ const vendorServiceAreaSchema = new mongoose.Schema(
     locationId: { ...locationField, required: true },
 
     zipcode: { type: String, required: true, trim: true },
-    city: { type: String, lowercase: true, trim: true },
-    district: { type: String, lowercase: true, trim: true },
-    state: { type: String, lowercase: true, trim: true },
-    country: { type: String, lowercase: true, trim: true, default: "india" },
+    // ⚠️ `lowercase: true` hata diya gaya. Ye fields sirf DISPLAY ke liye
+    //    hain — is collection pe har lookup `zipcode` / `vendorId` / `_id`
+    //    se hota hai, kabhi `city`/`district`/`state`/`country` se nahi.
+    //    Isliye casing hatane se koi query nahi tootti.
+    city: { type: String, trim: true },
+    district: { type: String, trim: true },
+    state: { type: String, trim: true },
+    country: { type: String, trim: true, default: DEFAULT_COUNTRY },
 
     // Per-area overrides (optional). Set na ho to VendorProfile.delivery se.
     deliveryChargeOverride: { type: Number },

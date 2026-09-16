@@ -2,8 +2,12 @@ const mongoose = require("mongoose");
 const Location = require("../../models/Location");
 const VendorProfile = require("../../models/VendorProfile");
 const VendorServiceArea = require("../../models/VendorServiceArea");
-const { ERROR_CODES, LOCATION_TYPES } = require("../../constants");
-const { throwError, validateObjectId } = require("../../utils");
+const {
+  ERROR_CODES,
+  LOCATION_TYPES,
+  DEFAULT_COUNTRY,
+} = require("../../constants");
+const { throwError, validateObjectId, toTitleCase } = require("../../utils");
 const { isValidZipCode } = require("../../validator/common");
 const { invalidateServiceAreaCache } = require("./resolveServiceContext");
 
@@ -43,7 +47,7 @@ exports.addServiceAreas = async (vendorId, payload) => {
   for (const a of list) {
     const zipcode = String(a?.zipcode ?? "").trim();
     if (!zipcode) throwError(422, "Each area must include a zipcode");
-    const country = (a?.country || branch.country || "india").toLowerCase();
+    const country = toTitleCase(a?.country || branch.country) || DEFAULT_COUNTRY;
     if (!isValidZipCode(country, zipcode)) {
       throwError(422, `${zipcode} is not a valid ZIP/postal code for ${country}`);
     }
@@ -55,9 +59,9 @@ exports.addServiceAreas = async (vendorId, payload) => {
       vendorId,
       locationId,
       zipcode,
-      city: (a?.city ?? branch.city)?.toLowerCase(),
-      district: (a?.district ?? branch.district)?.toLowerCase(),
-      state: (a?.state ?? branch.state)?.toLowerCase(),
+      city: toTitleCase(a?.city ?? branch.city),
+      district: toTitleCase(a?.district ?? branch.district),
+      state: toTitleCase(a?.state ?? branch.state),
       country,
       etaMinutes: a?.etaMinutes,
       minOrderAmount: a?.minOrderAmount,

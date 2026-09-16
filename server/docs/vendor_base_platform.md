@@ -325,10 +325,14 @@ const vendorServiceAreaSchema = new mongoose.Schema({
   vendorId:   { ...userField, required: true },
   locationId: { ...locationField, required: true }, // kaun si branch serve karegi
   zipcode:    { type: String, required: true, trim: true },
-  city:       { type: String, lowercase: true },
-  district:   { type: String, lowercase: true },
-  state:      { type: String, lowercase: true },
-  country:    { type: String, lowercase: true, default: "india" },
+  // NOTE: `lowercase: true` 16 Sep 2026 ko hata diya gaya — display
+  // fields ab proper case me save hote hain (runbook §10). Is collection
+  // pe har lookup `zipcode`/`vendorId`/`_id` se hota hai, in fields se
+  // kabhi nahi — isliye koi query nahi tooti.
+  city:       { type: String },
+  district:   { type: String },
+  state:      { type: String },
+  country:    { type: String, default: DEFAULT_COUNTRY },  // "India"
 
   // optional per-area overrides (Phase 6)
   deliveryChargeOverride: { type: Number },

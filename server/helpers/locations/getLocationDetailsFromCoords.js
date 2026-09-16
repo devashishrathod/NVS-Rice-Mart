@@ -2,6 +2,7 @@ const axios = require("axios");
 const LOCATION_API = process.env.LOCATION_API;
 const LOCATION_HEADER = process.env.LOCATION_HEADER;
 const { getDistrictOrCityPostcode } = require("./getDistrictOrCityPostcode");
+const { toTitleCase } = require("../../utils/textCase");
 
 exports.getLocationDetailsFromCoords = async (lat, lon) => {
   try {
@@ -13,33 +14,45 @@ exports.getLocationDetailsFromCoords = async (lat, lon) => {
     });
     if (!data || !data.address) return null;
     const addr = data?.address;
+
+    // 🎁 Nominatim pehle se proper case bhejta hai — "Davangere",
+    //    "Karnataka", "India". Pehle hum use jaan-boojh ke lowercase kar
+    //    dete the. Ab wo casing seedha kaam aa jati hai.
+    //    `toTitleCase` yahan safety net hai: mixed-case value ko chhoda
+    //    jata hai, aur kabhi API ALL-CAPS de de to wo bhi theek ho jaye.
     const city =
-      addr?.city?.toLowerCase() ||
-      addr?.city_district?.toLowerCase() ||
-      addr?.town?.toLowerCase() ||
-      addr?.village?.toLowerCase() ||
+      toTitleCase(addr?.city) ||
+      toTitleCase(addr?.city_district) ||
+      toTitleCase(addr?.town) ||
+      toTitleCase(addr?.village) ||
       null;
-    const district = addr?.state_district?.toLowerCase() || null;
-    const country = addr?.country?.toLowerCase() || null;
-    const locationData = {
+    const district = toTitleCase(addr?.state_district) || null;
+    const country = toTitleCase(addr?.country) || null;
+
+    // Pehle ye template-string tha — khali parts se double space reh jata
+    // tha ("road  suburb").
+    const address = [addr?.road, addr?.village, addr?.suburb]
+      .map((p) => toTitleCase(p))
+      .filter(Boolean)
+      .join(" ");
+
+    return {
       lat: data?.lat,
       lon: data?.lon,
-      formattedAddress: data?.display_name?.toLowerCase() || null,
-      name: data?.name?.toLowerCase() || null,
-      address: `${addr.road?.toLowerCase() || ""} ${
-        addr?.village?.toLowerCase() || ""
-      } ${addr.suburb?.toLowerCase() || ""}`.trim(),
-      area: addr?.county?.toLowerCase() || null,
+      formattedAddress: toTitleCase(data?.display_name) || null,
+      name: toTitleCase(data?.name) || null,
+      address,
+      area: toTitleCase(addr?.county) || null,
       city,
       district,
+      // zipcode pe casing nahi — digits/alphanumeric code hai
       zipcode:
-        addr.postcode?.toLowerCase() ||
+        addr?.postcode?.trim() ||
         (await getDistrictOrCityPostcode(country, district, city)) ||
         null,
-      state: addr?.state?.toLowerCase() || null,
+      state: toTitleCase(addr?.state) || null,
       country,
     };
-    return locationData;
   } catch (err) {
     console.error("Reverse geocode error →", err.message);
     return null;

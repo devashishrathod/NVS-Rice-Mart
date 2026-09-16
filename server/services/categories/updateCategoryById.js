@@ -1,5 +1,11 @@
 const Category = require("../../models/Category");
-const { throwError, validateObjectId } = require("../../utils");
+const {
+  throwError,
+  validateObjectId,
+  toTitleCase,
+  toSentenceCase,
+  ciExact,
+} = require("../../utils");
 const { assertOwnership } = require("../assertOwnership");
 const { uploadImage, deleteImage } = require("../uploads");
 
@@ -17,11 +23,11 @@ exports.updateCategoryById = async (id, payload, image, actor) => {
       category.isActive = isActive === true || isActive === "true";
     }
     if (name) {
-      name = name.toLowerCase();
+      name = toTitleCase(name);
       const existing = await Category.findOne({
         _id: { $ne: id },
         userId: category.userId, // vendor ke andar hi unique
-        name,
+        name: ciExact(name), // "Rice" aur "rice" ek hi maane jayein
         isDeleted: false,
       });
       if (existing) {
@@ -29,7 +35,7 @@ exports.updateCategoryById = async (id, payload, image, actor) => {
       }
       category.name = name;
     }
-    if (description) category.description = description.toLowerCase();
+    if (description) category.description = toSentenceCase(description);
   }
   if (image) {
     if (category.image) await deleteImage(category.image);

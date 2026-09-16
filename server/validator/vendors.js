@@ -21,7 +21,7 @@ const branchSchema = Joi.object({
   zipcode: Joi.string().required(),
   formattedAddress: Joi.string().allow("").optional(),
   coordinates: coordinates.required(),
-  isDefault: Joi.boolean().optional(),
+  isDefault: Joi.boolean().default(false).optional(),
 });
 
 // Vendor khud ye manage karta hai. Cap fields `null` allow karte hain =

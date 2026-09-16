@@ -1,9 +1,10 @@
 const mongoose = require("mongoose");
 const User = require("../../models/User");
 const Location = require("../../models/Location");
-const { ROLES, LOCATION_TYPES } = require("../../constants");
-const { throwError, validateObjectId } = require("../../utils");
+const { ROLES, LOCATION_TYPES, DEFAULT_COUNTRY } = require("../../constants");
+const { throwError, validateObjectId, toTitleCase } = require("../../utils");
 const { isValidZipCode } = require("../../validator/common");
+const { buildFormattedAddress } = require("../../helpers/locations");
 
 const EDITABLE = [
   "name",
@@ -16,6 +17,16 @@ const EDITABLE = [
   "country",
   "zipcode",
   "formattedAddress",
+];
+
+// Inme se koi badla to `formattedAddress` dobara banana padta hai
+const ADDRESS_PARTS = [
+  "address",
+  "city",
+  "district",
+  "state",
+  "zipcode",
+  "country",
 ];
 
 const loadOwned = async (locationId, actor) => {
@@ -80,21 +91,29 @@ exports.updateLocation = async (locationId, payload, actor) => {
   let changed = false;
   for (const field of EDITABLE) {
     if (payload?.[field] === undefined) continue;
-    const value =
-      field === "zipcode" ? String(payload[field]).trim() : payload[field];
+    // `zipcode` digits hai — uspe casing nahi lagti, sirf trim.
     location[field] =
-      typeof value === "string" && field !== "zipcode"
-        ? value.toLowerCase()
-        : value;
+      field === "zipcode"
+        ? String(payload[field]).trim()
+        : toTitleCase(payload[field]);
     changed = true;
   }
 
   if (payload?.coordinates !== undefined) {
     const c = payload.coordinates;
-    if (!Array.isArray(c) || c.length !== 2 || !Number(c[0]) || !Number(c[1])) {
+    const lat = Number(c?.[0]);
+    const lng = Number(c?.[1]);
+    // ⚠️ Pehle yahan `!Number(c[0])` tha — wo latitude/longitude 0 ko bhi
+    // reject kar deta tha (0 falsy hai). `Number.isFinite` sahi check hai.
+    if (
+      !Array.isArray(c) ||
+      c.length !== 2 ||
+      !Number.isFinite(lat) ||
+      !Number.isFinite(lng)
+    ) {
       throwError(422, "Coordinates must be a valid [latitude, longitude]");
     }
-    location.coordinates = c;
+    location.coordinates = [lat, lng];
     changed = true;
   }
 
@@ -102,7 +121,24 @@ exports.updateLocation = async (locationId, payload, actor) => {
     throwError(422, "At least one field is required to update");
   }
 
-  const country = (location.country || "india").toLowerCase();
+  // 🆕 Address ka koi hissa badla aur client ne khud `formattedAddress` nahi
+  // bheja → dobara bana do. Pehle ye stale reh jata tha: city badalne ke
+  // baad bhi `formattedAddress` me purani city dikhti rehti thi.
+  const partChanged = ADDRESS_PARTS.some((f) => payload?.[f] !== undefined);
+  if (partChanged && payload?.formattedAddress === undefined) {
+    location.formattedAddress = buildFormattedAddress({
+      address: location.address,
+      city: location.city,
+      district: location.district,
+      state: location.state,
+      zipcode: location.zipcode,
+      country: location.country,
+    });
+  }
+
+  // `isValidZipCode()` country ko case-insensitive padhta hai, isliye yahan
+  // lowercase karne ki zarurat nahi.
+  const country = location.country || DEFAULT_COUNTRY;
   if (location.zipcode && !isValidZipCode(country, location.zipcode)) {
     throwError(
       422,

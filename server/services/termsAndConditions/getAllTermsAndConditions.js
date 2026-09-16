@@ -1,5 +1,5 @@
 const TermAndCondition = require("../../models/Terms&Condition");
-const { pagination } = require("../../utils");
+const { pagination, escapeRegex } = require("../../utils");
 
 exports.getAllTermsAndConditions = async (query) => {
   let {
@@ -19,11 +19,11 @@ exports.getAllTermsAndConditions = async (query) => {
   if (typeof isActive !== "undefined") {
     match.isActive = isActive === "true" || isActive === true;
   }
-  if (title) match.title = { $regex: new RegExp(title, "i") };
+  if (title) match.title = { $regex: new RegExp(escapeRegex(title), "i") };
   if (search) {
     match.$or = [
-      { title: { $regex: new RegExp(search, "i") } },
-      { description: { $regex: new RegExp(search, "i") } },
+      { title: { $regex: new RegExp(escapeRegex(search), "i") } },
+      { description: { $regex: new RegExp(escapeRegex(search), "i") } },
     ];
   }
   if (fromDate || toDate) {

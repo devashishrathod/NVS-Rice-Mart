@@ -135,6 +135,12 @@ module.exports = {
     maxRadiusKm: null,
   }),
 
+  // Address ka default country — ek hi jagah, taaki har service apna
+  // `|| "india"` na likhe. Title case isliye ki ab display fields jaise
+  // dikhne chahiye waise save hote hain.
+  // (`isValidZipCode()` country ko case-insensitive padhta hai.)
+  DEFAULT_COUNTRY: "India",
+
   SHOP_ADDRESS: Object.freeze({
     CITY: "davangeere",
     STATE: "karnatka",

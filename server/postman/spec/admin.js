@@ -1001,7 +1001,7 @@ module.exports = [
       notes: [
         "**⚠️ Ye endpoint pehle poora tuta hua tha** — `title` bhejne pe hamesha `500` aata tha (`result.findOne is not a function`), aur `isActive` bhejne pe value **ulti** ho jati thi (toggle). Dono fix ho gaye hain: ab `isActive` **set** hota hai aur duplicate title pe saaf `409` milta hai.",
         "Panel se `isActive` ki nayi value bhejo, purana \"bas field bhej do\" wala code hata do.",
-        "`title` aur `description` server pe lowercase ho ke save hote hain.",
+        "🔤 `title` **Title Case** me aur `description` **sentence case** me save hote hain (pehle dono lowercase ho jate the). Duplicate check case-insensitive hai — \"Refund Policy\" aur \"refund policy\" ek hi maane jayenge.",
       ],
       fields: [
         ["title", "string", "no", "3 se 120 chars"],
@@ -1090,7 +1090,7 @@ module.exports = [
       notes: [
         "**⚠️ Ye endpoint pehle poora tuta hua tha** — `title` bhejne pe hamesha `500` aata tha (`result.findOne is not a function`), aur `isActive` bhejne pe value **ulti** ho jati thi (toggle). Dono fix ho gaye hain: ab `isActive` **set** hota hai aur duplicate title pe saaf `409` milta hai.",
         "Panel se `isActive` ki nayi value bhejo, purana \"bas field bhej do\" wala code hata do.",
-        "`title` aur `description` server pe lowercase ho ke save hote hain.",
+        "🔤 `title` **Title Case** me aur `description` **sentence case** me save hote hain (pehle dono lowercase ho jate the). Duplicate check case-insensitive hai — \"Refund Policy\" aur \"refund policy\" ek hi maane jayenge.",
       ],
       fields: [
         ["title", "string", "no", "3 se 120 chars"],

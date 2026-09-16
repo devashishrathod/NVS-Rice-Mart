@@ -225,30 +225,119 @@ Delivery ka actual charge ab **per-vendor** hai. Customer ko jo dikhana hai wo `
 
 > **Admin panel:** purana delivery-pricing form (`baseCharge`, `perKmRate`, …) ab kuch nahi karta — wo fields vendor ke profile me chale gaye. Us form ko **platform limits** ke do fields tak chhota kar dijiye. `distanceFactor` / `weightFactor` hata diye gaye (wo kabhi use hi nahi hue the).
 
-### 2.11 `POST /locations/create` — do behaviour changes
+### 2.11 `POST /locations/create` — behaviour changes
 
 ```jsonc
 POST /locations/create
 {
+  // ── REQUIRED
   "address": "12c vittal mandir road",
-  "area": "maharaja pet",
   "city": "davangere",
-  "district": "davangere",
   "state": "karnataka",
-  "country": "india",          // optional, default "india"
   "zipcode": "577004",
   "coordinates": [14.4641, 75.9217],   // [latitude, longitude]
-  "name": "home",              // optional
-  "shopOrBuildingNumber": "12c", // optional
-  "isDefault": true,           // 🆕 optional
-  "userId": "..."              // 🔴 ab sirf ADMIN bhej sakta hai
+
+  // ── OPTIONAL (sab)
+  "district": "davangere",       // 🆕 ab OPTIONAL (pehle required tha)
+  "name": "home",
+  "shopOrBuildingNumber": "12c",
+  "area": "maharaja pet",
+  "country": "india",            // default "India"
+  "formattedAddress": "...",     // na bhejo to server khud banata hai
+  "isDefault": true,
+  "userId": "..."                // 🔴 ab sirf ADMIN bhej sakta hai
 }
 ```
 
 1. 🔴 **`userId`** — apne alawa kisi aur ka bhejoge to `403`. (Pehle koi bhi doosre ke account me address daal sakta tha.)
 2. 🆕 **`isDefault`** — pehla address **automatically default** banta hai. Baad me `isDefault: true` bhejo to wo default ban jaata hai aur baaki apne-aap `false` ho jaate hain (ek hi default rahega).
+3. 🆕 **`district` ab optional hai.** Required sirf paanch: `address`, `city`, `state`, `zipcode`, `coordinates`.
+4. 🆕 **Ab is route pe asli validation lagti hai.** Pehle yahan koi validation thi hi nahi. Jo fields humein nahi pata wo chup-chaap **drop** ho jate hain (`422` nahi milega), isliye purane clients nahi tootenge.
 
 > ⚠️ **Coordinates ka order `[latitude, longitude]` hai** — `[14.4641, 75.9217]`. Purana validator message "[longitude, latitude]" kehta tha, wo **galat** tha.
+
+### 2.12 🆕 `PUT /locations/upsert` — **App team ka main address endpoint**
+
+> 📌 **1359 customers (93.5%) ke paas koi address nahi hai.** Address
+> onboarding screen ke liye **yahi** endpoint use karein — `create` nahi.
+
+```jsonc
+PUT /locations/upsert          // verifyJwtToken
+{
+  "address": "12c vittal mandir road",
+  "city": "davangere",
+  "state": "karnataka",
+  "zipcode": "577004",
+  "coordinates": [14.4641, 75.9217],
+  "district": "davangere",       // optional
+  "name": "home",                // optional
+  "area": "maharaja pet",        // optional
+  "shopOrBuildingNumber": "12c", // optional
+  "country": "india",            // optional
+  "userId": "..."                // sirf ADMIN — kisi aur user ke liye
+}
+
+200 {
+  "message": "Address saved successfully",
+  "data": {
+    "created": true,      // true = naya bana, false = purana update hua
+    "promoted": false,    // internal — address tha par default nahi tha
+    "location": { ...poora address }
+  }
+}
+```
+
+**Kaam kaise karta hai:**
+- Customer ka **default address** ho → wahi update hota hai
+- Na ho → naya banta hai aur default ban jata hai
+- **Duplicate kabhi nahi banta** — 10 baar Save dabao, address ek hi rahega
+
+> 🔴 **Ye kyun bana:** `POST /locations/create` har call pe naya doc banata tha.
+> Asli data me ek customer ke **8 address** mile, jinme **6 identical**, 20
+> minute ke andar. User bas "Save" dobara daba raha tha.
+
+**Status hamesha `200`** rehta hai (201 nahi) — `created` flag se pata chalta
+hai naya bana ya update hua. Do alag code handle karne ki zarurat nahi.
+
+**Farq samajh lo:**
+| Endpoint | Kab |
+|---|---|
+| `PUT /locations/upsert` | "Mera address save karo" — onboarding, address screen |
+| `POST /locations/create` | Customer ko **kai** address rakhne dene ho (ghar + office) |
+| `PUT /locations/update/:id` | Ek **khaas** address edit karna ho |
+
+- Customer body me kisi aur ka `userId` bheje → `403`
+- Admin `userId` bhej ke kisi bhi customer ka address save/update kar sakta hai
+- `isDefault` accept **nahi** hota — upsert hamesha default address pe kaam karta hai
+
+### 2.13 🔤 Text ab **lowercase nahi** aata — **sab teams**
+
+Pehle server sab kuch lowercase karke save karta tha, isliye API se
+`"davangere"`, `"basmati rice"` wapas aata tha. **Ab proper case aata hai:**
+
+```
+"davangere"      → "Davangere"
+"basmati rice"   → "Basmati Rice"
+"rnr raw rice"   → "RNR Raw Rice"
+"mp"             → "MP"
+```
+
+Asar in fields pe: `name` · `address` · `area` · `city` · `district` ·
+`state` · `country` · `formattedAddress` · `brand` · `title` · `shopName`
+(aur `description` sentence case me).
+
+🔒 **`email`, `role`, `loginType`, `product.type` pehle jaise lowercase hi
+rehte hain** — un pe kuch nahi badla.
+
+**App/panel teams ke liye 2 kaam:**
+1. Agar kahin CSS me `text-transform: capitalize` laga rakha tha (lowercase
+   data ko theek dikhane ke liye) → **hata dein**, warna `"NVS"` → `"Nvs"`
+   dikhega
+2. Agar kahin code me `city === "davangere"` jaisa **exact compare** hai →
+   case-insensitive kar dein. (Backend ke saare filters case-insensitive
+   ho chuke hain — `?city=davangere` aur `?city=Davangere` dono chalte hain.)
+
+> Purana data bhi backfill ho chuka hai, to mixed casing nahi milegi.
 
 ---
 
@@ -1095,6 +1184,8 @@ Data payload hamesha: `{ "type": "order", "orderId": "...", "orderNumber": "NVS-
 - [ ] `GET /orders/getAll` se `?userId=` hatao (ab auto-scoped)
 - [ ] `POST /orders/create` me `paymentMethod` hamesha `"COD"`
 - [ ] `POST /orders/verify-payment` / Razorpay flow hatao (agar hai)
+- [ ] 🆕 **Address onboarding screen** → `PUT /locations/upsert` use karo (`create` nahi) — §2.12
+- [ ] 🆕 `text-transform: capitalize` hata do jahan bhi laga hai — §2.13
 - [ ] `POST /locations/create` me `coordinates` `[lat, lng]` confirm karo
 
 **Phase 2 ke saath (ye sabse bada kaam hai):**
