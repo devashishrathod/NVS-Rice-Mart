@@ -1,5 +1,5 @@
 const User = require("../../models/User");
-const { throwError } = require("../../utils");
+const { throwError, toTitleCase } = require("../../utils");
 const { uploadImage, deleteImage } = require("../uploads");
 //const { isAdult } = require("../../helpers/users");
 
@@ -8,8 +8,9 @@ exports.updateUserById = async (userId, payload, image) => {
   if (!user || user?.isDeleted) throwError(404, "User not found");
   if (payload) {
     let { name, email, mobile, dob } = payload;
-    if (name) user.name = name?.toLowerCase();
-    // if (address) user.address = address?.toLowerCase();
+    // `name` display field hai — proper case me save hota hai.
+    // (`email` neeche lowercase HI rehta hai — wo lookup key hai.)
+    if (name) user.name = toTitleCase(name);
     if (dob) {
       //  if (!isAdult(dob)) throwError(400, "User must be at least 18 years old");
       user.dob = dob;

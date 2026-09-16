@@ -2,7 +2,7 @@ const User = require("../../models/User");
 const VendorProfile = require("../../models/VendorProfile");
 const VendorServiceArea = require("../../models/VendorServiceArea");
 const { ROLES, VENDOR_STATUS } = require("../../constants");
-const { throwError, validateObjectId } = require("../../utils");
+const { throwError, validateObjectId, toTitleCase } = require("../../utils");
 const { invalidateServiceAreaCache } = require("../serviceAreas");
 const { getVendor } = require("./getVendors");
 
@@ -80,7 +80,7 @@ exports.updateVendor = async (vendorId, payload, actor) => {
     if (!isAdmin) throwError(403, "Only an admin can change name or mobile");
     const user = await User.findById(vendorId);
     if (!user) throwError(404, "Vendor user not found");
-    if (payload.name !== undefined) user.name = payload.name?.toLowerCase();
+    if (payload.name !== undefined) user.name = toTitleCase(payload.name);
     if (payload.mobile !== undefined && payload.mobile !== user.mobile) {
       const clash = await User.findOne({
         mobile: payload.mobile,

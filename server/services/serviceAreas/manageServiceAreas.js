@@ -2,7 +2,11 @@ const mongoose = require("mongoose");
 const Location = require("../../models/Location");
 const VendorProfile = require("../../models/VendorProfile");
 const VendorServiceArea = require("../../models/VendorServiceArea");
-const { ERROR_CODES, LOCATION_TYPES } = require("../../constants");
+const {
+  ERROR_CODES,
+  LOCATION_TYPES,
+  DEFAULT_COUNTRY,
+} = require("../../constants");
 const { throwError, validateObjectId, pagination } = require("../../utils");
 const {
   invalidateServiceAreaCache,
@@ -138,7 +142,7 @@ exports.reassignServiceArea = async (payload) => {
           city: branch.city,
           district: branch.district,
           state: branch.state,
-          country: branch.country || "india",
+          country: branch.country || DEFAULT_COUNTRY,
           isActive: true,
           isDeleted: false,
         },

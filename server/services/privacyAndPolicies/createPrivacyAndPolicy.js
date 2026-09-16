@@ -1,12 +1,12 @@
 const PrivacyAndPolicy = require("../../models/Privacy&Policy");
-const { throwError } = require("../../utils");
+const { throwError, toTitleCase, toSentenceCase, ciExact } = require("../../utils");
 
 exports.createPrivacyAndPolicy = async (payload, image) => {
   let { title, description, isActive } = payload;
-  title = title?.toLowerCase();
-  description = description?.toLowerCase();
+  title = toTitleCase(title);
+  description = toSentenceCase(description);
   const existingPrivacyAndPolicy = await PrivacyAndPolicy.findOne({
-    title,
+    title: ciExact(title),
     isDeleted: false,
   });
   if (existingPrivacyAndPolicy) {

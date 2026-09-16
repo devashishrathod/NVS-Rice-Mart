@@ -7,9 +7,11 @@ const {
   LOGIN_TYPES,
   LOCATION_TYPES,
   VENDOR_STATUS,
+  DEFAULT_COUNTRY,
 } = require("../../constants");
-const { throwError } = require("../../utils");
+const { throwError, toTitleCase } = require("../../utils");
 const { isValidZipCode } = require("../../validator/common");
+const { buildFormattedAddress } = require("../../helpers/locations");
 
 /**
  * Vendor = User(role=vendor) + VendorProfile + pehla branch.
@@ -39,8 +41,11 @@ exports.createVendor = async (payload) => {
   if (!email && !mobile) {
     throwError(422, "Email or mobile is required for the vendor login");
   }
+  // 🔒 `email` lowercase HI rehta hai — `findOne({ email })` exact match
+  //    karta hai, isliye ye normalization functional hai, cosmetic nahi.
   email = email?.toLowerCase();
-  name = name?.toLowerCase() || shopName?.toLowerCase();
+  // `name` display field hai — ab proper case me.
+  name = toTitleCase(name) || toTitleCase(shopName);
 
   // Uniqueness role ke andar — ek hi mobile customer aur vendor dono ka ho
   // sakta hai (auth lookup bhi `{ mobile, role }` se hota hai).
@@ -69,7 +74,7 @@ exports.createVendor = async (payload) => {
     state,
     zipcode,
     coordinates,
-    country = "india",
+    country = DEFAULT_COUNTRY,
   } = branch;
   if (!address || !city || !district || !state || !zipcode || !coordinates) {
     throwError(
@@ -83,6 +88,18 @@ exports.createVendor = async (payload) => {
   if (!isValidZipCode(country, zipcode)) {
     throwError(422, `${zipcode} is not a valid ZIP/postal code for ${country}`);
   }
+
+  // Display fields proper case me — `zipcode`/`coordinates` chhod ke.
+  const branchFields = {
+    name: toTitleCase(branch.name) || toTitleCase(shopName),
+    shopOrBuildingNumber: toTitleCase(branch.shopOrBuildingNumber),
+    address: toTitleCase(address),
+    area: toTitleCase(branch.area),
+    city: toTitleCase(city),
+    district: toTitleCase(district),
+    state: toTitleCase(state),
+    country: toTitleCase(country),
+  };
 
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -108,18 +125,11 @@ exports.createVendor = async (payload) => {
         {
           userId: vendor._id,
           type: LOCATION_TYPES.VENDOR_BRANCH,
-          name: (branch.name || shopName)?.toLowerCase(),
-          shopOrBuildingNumber: branch.shopOrBuildingNumber?.toLowerCase(),
-          address: address.toLowerCase(),
-          area: branch.area?.toLowerCase(),
-          city: city.toLowerCase(),
-          district: district.toLowerCase(),
-          state: state.toLowerCase(),
-          country: country.toLowerCase(),
+          ...branchFields,
           zipcode,
           formattedAddress:
-            branch.formattedAddress?.toLowerCase() ||
-            `${address}, ${city}, ${district}, ${state}, ${zipcode}, ${country}`.toLowerCase(),
+            toTitleCase(branch.formattedAddress) ||
+            buildFormattedAddress({ ...branchFields, zipcode }),
           coordinates,
           isDefault: true, // 📍 pickup point
           isActive: true,

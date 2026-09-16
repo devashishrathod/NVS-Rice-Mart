@@ -2,9 +2,10 @@ const mongoose = require("mongoose");
 const Location = require("../../models/Location");
 const User = require("../../models/User");
 const VendorProfile = require("../../models/VendorProfile");
-const { LOCATION_TYPES } = require("../../constants");
-const { throwError, validateObjectId } = require("../../utils");
+const { LOCATION_TYPES, DEFAULT_COUNTRY } = require("../../constants");
+const { throwError, validateObjectId, toTitleCase } = require("../../utils");
 const { isValidZipCode } = require("../../validator/common");
+const { buildFormattedAddress } = require("../../helpers/locations");
 const { bustVendorCache } = require("./updateVendor");
 
 exports.getBranches = async (vendorId) => {
@@ -30,7 +31,7 @@ exports.createBranch = async (vendorId, payload) => {
     state,
     zipcode,
     coordinates,
-    country = "india",
+    country = DEFAULT_COUNTRY,
     isDefault,
   } = payload;
   if (!address || !city || !district || !state || !zipcode || !coordinates) {
@@ -45,6 +46,18 @@ exports.createBranch = async (vendorId, payload) => {
   if (!isValidZipCode(country, zipcode)) {
     throwError(422, `${zipcode} is not a valid ZIP/postal code for ${country}`);
   }
+
+  // Display fields proper case me — `zipcode`/`coordinates` chhod ke.
+  const branchFields = {
+    name: toTitleCase(payload.name),
+    shopOrBuildingNumber: toTitleCase(payload.shopOrBuildingNumber),
+    address: toTitleCase(address),
+    area: toTitleCase(payload.area),
+    city: toTitleCase(city),
+    district: toTitleCase(district),
+    state: toTitleCase(state),
+    country: toTitleCase(country),
+  };
 
   // Pehli branch hamesha default (warna order place hi nahi hoga)
   const existing = await Location.countDocuments({
@@ -74,18 +87,11 @@ exports.createBranch = async (vendorId, payload) => {
         {
           userId: vendorId,
           type: LOCATION_TYPES.VENDOR_BRANCH,
-          name: payload.name?.toLowerCase(),
-          shopOrBuildingNumber: payload.shopOrBuildingNumber?.toLowerCase(),
-          address: address.toLowerCase(),
-          area: payload.area?.toLowerCase(),
-          city: city.toLowerCase(),
-          district: district.toLowerCase(),
-          state: state.toLowerCase(),
-          country: country.toLowerCase(),
+          ...branchFields,
           zipcode,
           formattedAddress:
-            payload.formattedAddress?.toLowerCase() ||
-            `${address}, ${city}, ${district}, ${state}, ${zipcode}, ${country}`.toLowerCase(),
+            toTitleCase(payload.formattedAddress) ||
+            buildFormattedAddress({ ...branchFields, zipcode }),
           coordinates,
           isDefault: shouldBeDefault,
           isActive: true,
