@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 const { isValidZipCode } = require("../validator/common");
-const { LOCATION_TYPES } = require("../constants");
+const { LOCATION_TYPES, DEFAULT_COUNTRY } = require("../constants");
 const { userField } = require("./validObjectId");
 
 const locationSchema = new mongoose.Schema(
@@ -22,7 +22,12 @@ const locationSchema = new mongoose.Schema(
     city: { type: String },
     district: { type: String },
     state: { type: String },
-    country: { type: String },
+    // `default` yahan isliye ki `zipcode` ka validator country pe depend
+    // karta hai — country na ho to `isValidZipCode()` hamesha `false` deta
+    // hai aur SAHI zipcode bhi reject ho jata. Services pehle se "india"
+    // set karti thi; ab model bhi khud safe hai.
+    // (`VendorServiceArea.country` pe ye default pehle se tha.)
+    country: { type: String, default: DEFAULT_COUNTRY },
     formattedAddress: { type: String },
     zipcode: {
       type: String,
@@ -30,8 +35,12 @@ const locationSchema = new mongoose.Schema(
         validator: function (v) {
           return isValidZipCode(this.country, v);
         },
+        // ⚠️ Pehle yahan `props.instance.country` tha — Mongoose message
+        // callback ko `instance` deta hi nahi (undefined hai). Nateeja: har
+        // invalid zipcode pe asli error ki jagah
+        // "TypeError: Cannot read properties of undefined" aata tha.
         message: (props) =>
-          `${props.value} is not a valid ZIP/postal code for country ${props.instance.country}`,
+          `${props.value} is not a valid ZIP/postal code for this country`,
       },
     },
     coordinates: { type: [Number], default: [0, 0] }, // [lat , lng]
