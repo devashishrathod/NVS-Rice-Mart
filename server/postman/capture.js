@@ -797,6 +797,28 @@ const run = async () => {
     const tLocId = r.data && r.data._id;
     if (tLocId) CREATED.locations.push(tLocId);
 
+    // 🆕 upsert — is customer ka default address pehle se hai, isliye ye
+    // UPDATE karega aur `created: false` dega. Yahi iska asli point hai:
+    // dobara-dobara Save karne se naya doc nahi banta.
+    rec(
+      "cust.loc.upsert",
+      await callRetry("PUT", "/locations/upsert", {
+        token: tCustToken,
+        body: {
+          name: "Ghar",
+          shopOrBuildingNumber: "12-B",
+          area: "Jayanagar",
+          address: "12-B, Shivam Residency, Jayanagar 4th Block",
+          city: "Bengaluru",
+          district: "Bengaluru Urban",
+          state: "Karnataka",
+          country: "India",
+          zipcode: "560001",
+          coordinates: [12.975, 77.6],
+        },
+      }),
+    );
+
     rec(
       "cust.loc.update",
       await callRetry("PUT", `/locations/update/${tLocId}`, {
