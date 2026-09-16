@@ -100,6 +100,26 @@ indexes hain (pehle 2 the).
 customers ko abhi `404 PINCODE_NOT_SERVICEABLE` mil raha hoga — service areas
 hain hi nahi. **Migration se pehle confirm karein.**
 
+### 🟠 1.11 Duplicate addresses — `create` ke paas upsert tha hi nahi
+
+Stage data me ek customer ke **8 address** mile, jinme **6 bilkul identical**,
+sab **20 minute ke andar** bane:
+
+```
+👤 9741114222 — sab zip 577004
+  1.          sadananda g       vinobha nagar               07:19
+  2-7.        yallamma nagar    near amrutha mai school     07:25 → 07:36  ← 6 identical
+  8. ⭐DEFAULT sadananda g       yallamma nagar              07:39
+```
+
+User baar-baar "Save" daba raha tha, aur `POST /locations/create` har baar
+naya doc bana raha tha. Poore stage data me **2 aise groups, 6 barbaad docs**.
+
+**Fix:** naya `PUT /locations/upsert` — customer ka default address ho to
+update karta hai, na ho to banata hai. Dobara-dobara Save karne se ab
+duplicate nahi bante. Purane duplicates `backfillTextCase.js` soft-delete
+kar deti hai (§10).
+
 ---
 
 ## 2. Data mismatch se bachne ke liye jo verify hota hai
@@ -186,6 +206,35 @@ MONGO_URL="<prod-uri>" node scripts/migrateToVendorModel.js --apply
 ```
 Aakhir me **13/13 verify checks pass** hone chahiye. Ek bhi `❌` aaye to
 **rukein**, aage mat badhein.
+
+### Step 4.5 — Text casing backfill (§10)
+
+⚠️ Ye **naya code deploy karne se pehle** chalayein — taaki purana data aur
+naya data ek hi standard pe hon.
+
+```bash
+# 1. DRY RUN — kya-kya badlega dekh lein
+MONGO_URL="<prod-uri>" node scripts/backfillTextCase.js --rebuild-formatted
+
+# 2. Theek lage to apply (prod pe --yes-prod bhi zaroori hai)
+MONGO_URL="<prod-uri>" node scripts/backfillTextCase.js --rebuild-formatted --apply --yes-prod
+
+# 3. Dobara dry run → "0 docs badlenge" aana chahiye
+MONGO_URL="<prod-uri>" node scripts/backfillTextCase.js --rebuild-formatted
+```
+
+Stage pe ye numbers aaye the:
+```
+casing            456 docs (1954 fields)
+formattedAddress  124 docs
+dedupe              2 groups, 6 docs soft-delete
+```
+
+Script `scripts/.backfill-undo-*.json` banati hai — usse poora DB restore
+kiye bina **bilkul wahi** changes wapas ho jate hain:
+```bash
+MONGO_URL="<prod-uri>" node scripts/backfillTextCase.js --undo=scripts/.backfill-undo-....json
+```
 
 ### Step 5 — Naya code deploy
 
@@ -284,6 +333,12 @@ MONGO_URL="<stage>" DISABLE_PUSH=true node scripts/stageLoginCheck.js
 | `stageLoginCheck.js` | Stage health — logins + teeno customer states |
 | `repairVendorProfiles.js` | Orphan vendor users (User hai, VendorProfile nahi) theek karta hai |
 | `cleanupLegacyArtifacts.js` | Purane code ke nishaan hatata hai — **dry run default**, `--apply` se writes, idempotent (neeche §9) |
+| `backfillTextCase.js` | 🆕 Purane data ki casing theek + duplicate addresses saaf — **dry run default**, `--apply`, `--undo=<file>`, idempotent (§10) |
+| `locationAudit.js` | 🆕 Address data ka READ-ONLY audit — multi-address users, default status, casing scope, orphans |
+| `verify-textCase.js` | 🆕 128 checks — casing rules (koi DB nahi) |
+| `verify-locations.js` | 🆕 51 checks — create/upsert validator + formattedAddress builder (koi DB nahi) |
+| `verify-locations-live.js` | 🆕 78 checks — upsert ka asli DB pe test (apna scratch data banata aur mitata hai) |
+| `verify-catalog-live.js` | 🆕 29 checks — category/product casing + case-insensitive duplicate detection |
 
 ### Rehearsal dobara karni ho
 ```bash
@@ -316,7 +371,7 @@ Migration **do baar** chalayi — doosre run me sirf index lines, **zero data wr
 |---|---|---|
 | 1 | **Koi server prod pe purane ya naye code ke saath live to nahi?** (§1.10) — stage pe ye **practically ho gaya tha** (§9), isliye prod pe ise halke me mat lena | Migration se pehle |
 | 2 | **Force-update mechanism** — app store rollout sabke phone pe turant nahi pahunchta. Purane app version wale naye backend pe tootenge. Backend `minAppVersion` return kare aur app "update karein" dikhaye | Prod deploy se pehle |
-| 3 | 1355 customers (93%) ko pehli baar `PINCODE_REQUIRED` — **address onboarding screen** ready hona chahiye | App release ke saath |
+| 3 | **1359 customers (93.5%)** ko pehli baar `PINCODE_REQUIRED` — address onboarding screen chahiye. ✅ Backend ready: **`PUT /locations/upsert`** hi wo API hai (address ho to update, na ho to create — duplicate nahi bante) | App release ke saath |
 | 4 | 13 customers service area ke bahar — `404` screen | App release ke saath |
 | 5 | Order `PENDING` me atka rahe to auto-cancel job (Q20 — abhi "rehne do" tay hua) | Phase 6 |
 | 6 | `productlocations` dump me hai. 1-2 mahine baad prices confirm ho jayein to dump bhi archive kar dena | Baad me |
@@ -380,3 +435,103 @@ Script ye karti hai (idempotent, dry-run default):
 ```
 
 Uske baad: `postMigrationSmoke` **75/75 pass** (pehle 72/75), `stageLoginCheck` **11/11 pass**.
+
+---
+
+## 10. Text casing change — lowercase se proper case
+
+**16 Sep 2026.** Pehle har service `.toLowerCase()` karke save karti thi.
+`"Davangere"` DB me `"davangere"` ban jata tha aur wahi customer ko wapas
+dikhta tha. Ab display fields **jaise dikhne chahiye waise** save hote hain.
+
+### Kya badla
+
+| | |
+|---|---|
+| **Title Case** | Location ke `name` `shopOrBuildingNumber` `address` `area` `city` `district` `state` `country` `formattedAddress` · User `name` · Category/SubCategory `name` · Product `name` `brand` · Banner `name` · Terms/Privacy `title` · ServiceArea `city` `district` `state` `country` · Vendor `shopName` `legalName` |
+| **Sentence Case** | har jagah `description` |
+| 🔒 **Chhua NAHI** | `email` · `role` · `loginType` · `product.type` · `zipcode` · `SKU` |
+
+### Kyun kuch fields nahi chhue
+
+- **`email`** — `findOne({ email })` **exact match** karta hai. Lowercase
+  hatate to `Foo@x.com` se banaya account `foo@x.com` se login hi na kar
+  pata, aur partial-unique index duplicate accounts nahi rok pata.
+- **`role` / `loginType` / `product.type`** — ye **enum** hain. Yahan
+  lowercase karna *normalization* hai, cosmetic nahi. Hata dete to client
+  ka `"GROCERY"` mongoose enum validation me fail ho jata.
+
+### Casing rules — `server/utils/textCase.js`
+
+```
+toTitleCase()      naam / jagah
+toSentenceCase()   description
+normalizeForCompare()  sirf compare ke liye (kabhi save nahi hota)
+ciExact()          case-insensitive exact match, regex-escaped
+```
+
+🔑 **Sabse zaroori rule:** user ne jo **mixed case** type kiya, use chheda
+nahi jata — `"NVS Rice Mart"`, `"iPhone 15"`, `"McDonald's"` waise hi
+rehte hain. Auto-casing lossy hai, isliye jahan user ne deliberately
+casing di hai wahan usko maana jata hai.
+
+```
+"davangere"          → "Davangere"
+"MADHYA PRADESH"     → "Madhya Pradesh"
+"mp"                 → "MP"          (state/UT dictionary)
+"rnr raw rice"       → "RNR Raw Rice" (KNOWN_ACRONYMS list)
+"17 th cross"        → "17 Th Cross"  ("th" acronym NAHI hai)
+"ಕರ್ನಾಟಕ"             → unchanged     (Kannada me case hota hi nahi)
+"NVS Rice Mart"      → unchanged      (mixed = user ka faisla)
+```
+
+> ⚠️ **`KNOWN_ACRONYMS` explicit list hai, heuristic nahi.** "vowel nahi
+> to acronym" wala rule is data pe toot jata tha — `th`/`nd`/`rd`/`st`
+> **69 baar** aate hain (ordinal suffix) aur `hhhhg`/`dfsdf` jaisa junk bhi
+> uppercase ho jata. Naya acronym add karna ho to `textCase.js` me likh dein.
+
+### Filters case-insensitive ho gaye — ye COMPULSORY tha
+
+`getAllLocations` ke `city`/`district`/`state`/`country` filters query value
+ko lowercase karke **exact match** karte the. Wo sirf isliye chalta tha ki
+DB me sab lowercase tha. Ab `ciExact()` lagta hai — warna `?city=Indore`
+pe **0 results** aate.
+
+Wahi duplicate-checks pe: `findOne({ name })` ab `ciExact(name)` use karta
+hai, warna `"Rice"` aur `"rice"` do alag category ban jate.
+
+`zipcode` pe jaan-boojh ke **plain exact match** rakha — digits hai, aur
+regex `{ zipcode: 1, isDeleted: 1 }` index ko bekaar kar deta.
+
+### 🔒 Saath me 33 ReDoS call sites theek hue
+
+Har `getAll` me user ka input **seedha** `new RegExp()` me jata tha.
+`?search=(a+)+$` bhej ke koi server hang kar sakta tha. Ab sab
+`escapeRegex()` se guzarta hai — 9 files, 33 jagah.
+
+### Rollback
+
+```bash
+# sirf casing changes wapas (poora DB restore kiye bina)
+node scripts/backfillTextCase.js --undo=scripts/.backfill-undo-....json
+
+# ya poora DB
+node scripts/cloneDbForRehearsal.js --from <backup-db> --to <target-db> --apply
+```
+
+Code wapas karna ho to `utils/textCase.js` ke helpers ko identity function
+bana dena kaafi nahi — services `toTitleCase()` call karti hain, wo purane
+`.toLowerCase()` pe wapas laani padengi (git history me hain).
+
+### Stage pe result
+
+```
+backup            NvsRiceMart-StageBackup   2270/2270 docs
+casing            456 docs (1954 fields)
+formattedAddress  124 docs
+dedupe              2 groups, 6 docs soft-delete
+dobara dry run    0 changes ✅ idempotent
+
+verify-all 368 · textCase 128 · locations 51 · locations-live 78 · catalog-live 29
+stageLoginCheck 11/11
+```
