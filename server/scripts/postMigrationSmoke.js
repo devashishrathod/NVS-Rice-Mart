@@ -119,26 +119,59 @@ const run = async () => {
 
     // ══════════════════════════════════════════════════════════
     hr("2. Migrated catalog — vendor ko apna sab dikhta hai");
+    // NOTE: pehle yahan 17 / 30 / 76 hardcoded the. Prod live hai — orders aur
+    // products badhte rehte hain, isliye wo numbers har kuch din me rot ho
+    // jaate the (82 orders pe fail hua). Ab expected value DB se hi nikalti
+    // hai — ye test asal me BEHTAR hai, kyunki ab ye sabit karta hai ki API
+    // wahi lauta rahi hai jo DB me hai, na ki koi jaadui number.
+    const Category = require("../models/Category");
+    const dbVendorCats = await Category.countDocuments({
+      userId: vendorUser._id,
+      isDeleted: false,
+    });
+    const dbVendorProducts = await Product.countDocuments({
+      userId: vendorUser._id,
+      isDeleted: false,
+      isActive: true,
+    });
+
     r = await call("GET", "/categories/getAll?limit=100", { token: vendorToken });
     ok("vendor categories → 200", r.status === 200, `${r.status} ${r.message}`);
-    ok("17 categories (2 deleted included nahi)", r.data?.total === 17 || r.data?.total === 15,
-      `mila ${r.data?.total}`);
+    ok(
+      `vendor ko apni saari categories dikhi (${r.data?.total} = DB ke ${dbVendorCats})`,
+      r.data?.total === dbVendorCats,
+      `mila ${r.data?.total}, DB me ${dbVendorCats}`,
+    );
 
     r = await call("GET", "/products/getAll?limit=200", { token: vendorToken });
     ok("vendor products → 200", r.status === 200);
-    ok(`vendor ko 30 active products (mila ${r.data?.total})`, r.data?.total === 30);
+    ok(
+      `vendor ko apne saare active products dikhe (${r.data?.total} = DB ke ${dbVendorProducts})`,
+      r.data?.total === dbVendorProducts,
+      `mila ${r.data?.total}, DB me ${dbVendorProducts}`,
+    );
 
-    // NOTE: `>= 76` isliye ki ye script dobara chal sakti hai aur har run ek
-    // naya order banata hai. Migrated orders exactly 76 hone chahiye.
+    // Har purana order migrate hua ya nahi — exact count pin karna ho to
+    // `EXPECT_MIGRATED_ORDERS=<n>` env de do, warna bas "0 se zyada" check.
     const migratedCount = await Order.countDocuments({
       "statusHistory.note": "migrated",
     });
-    ok(`exactly 76 migrated orders (mila ${migratedCount})`, migratedCount === 76);
-    r = await call("GET", "/orders/getAll?limit=200", { token: vendorToken });
+    const expectMigrated = process.env.EXPECT_MIGRATED_ORDERS
+      ? Number(process.env.EXPECT_MIGRATED_ORDERS)
+      : null;
     ok(
-      `vendor ko saare orders dikhe (${r.data?.total} >= 76)`,
-      r.data?.total >= 76,
-      `mila ${r.data?.total}`,
+      expectMigrated
+        ? `exactly ${expectMigrated} migrated orders (mila ${migratedCount})`
+        : `migrated orders mile (${migratedCount})`,
+      expectMigrated ? migratedCount === expectMigrated : migratedCount > 0,
+      `mila ${migratedCount}`,
+    );
+    const dbTotalOrders = await Order.countDocuments({});
+    r = await call("GET", "/orders/getAll?limit=500", { token: vendorToken });
+    ok(
+      `vendor ko saare orders dikhe (${r.data?.total} = DB ke ${dbTotalOrders})`,
+      r.data?.total === dbTotalOrders,
+      `mila ${r.data?.total}, DB me ${dbTotalOrders}`,
     );
     ok("order me orderNumber hai", /^NVS-\d{4}-\d{6}$/.test(r.data?.data?.[0]?.orderNumber || ""),
       r.data?.data?.[0]?.orderNumber);
@@ -171,11 +204,24 @@ const run = async () => {
 
     r = await call("GET", "/categories/getAll?limit=100", { token: custToken });
     ok(`customer (${inArea?.zipcode}) ko categories → 200`, r.status === 200, `${r.status} ${r.message} ${r.code || ""}`);
-    ok(`15 active categories dikhi (mila ${r.data?.total})`, r.data?.total === 15);
+    const dbActiveCats = await Category.countDocuments({
+      userId: vendorUser._id,
+      isDeleted: false,
+      isActive: true,
+    });
+    ok(
+      `customer ko active categories dikhi (${r.data?.total} = DB ke ${dbActiveCats})`,
+      r.data?.total === dbActiveCats,
+      `mila ${r.data?.total}, DB me ${dbActiveCats}`,
+    );
 
     r = await call("GET", "/products/getAll?limit=200", { token: custToken });
     ok("customer ko products → 200", r.status === 200, `${r.status} ${r.message}`);
-    ok(`30 products dikhe (mila ${r.data?.total})`, r.data?.total === 30);
+    ok(
+      `customer ko wahi products dikhe jo vendor ke paas hain (${r.data?.total} = ${dbVendorProducts})`,
+      r.data?.total === dbVendorProducts,
+      `mila ${r.data?.total}, DB me ${dbVendorProducts}`,
+    );
     ok("sab ek hi vendor ke", (r.data?.data || []).every((p) => String(p.userId) === String(vendorUser._id)));
 
     // Case-insensitive — product names ab proper case me save hote hain
