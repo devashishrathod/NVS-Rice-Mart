@@ -23,6 +23,17 @@ const arg = (name) => {
 const FROM = arg("--from");
 const TO = arg("--to");
 const APPLY = process.argv.includes("--apply");
+/**
+ * ROLLBACK ke liye escape hatch.
+ *
+ * Normally target ke naam me "prod" ho to script mana kar deti hai. Par
+ * migration ke baad kuch bigde to backup se PROD pe hi wapas likhna padta
+ * hai — warna in-cluster backup ka koi matlab hi nahi rehta.
+ *
+ * Galti se na ho jaye isliye: `--force-target` ki value `--to` ke BILKUL
+ * barabar honi chahiye. Yaani DB ka pura naam dobara type karna padega.
+ */
+const FORCE_TARGET = arg("--force-target");
 
 const log = (s = "") => console.log(s);
 const hr = (t) => log(`\n${"═".repeat(74)}\n  ${t}\n${"═".repeat(74)}`);
@@ -34,7 +45,21 @@ const run = async () => {
     );
   }
   if (/prod/i.test(TO)) {
-    throw new Error(`ABORT: target "${TO}" me "prod" hai. Kabhi prod pe mat likho.`);
+    if (FORCE_TARGET !== TO) {
+      throw new Error(
+        `ABORT: target "${TO}" me "prod" hai.\n` +
+          `       Ye jaan-boojh ke roka gaya hai.\n\n` +
+          `       ROLLBACK karna hai (backup se prod pe wapas)? Tab target ka\n` +
+          `       pura naam dobara type karo:\n\n` +
+          `         --to ${TO} --force-target ${TO} --apply\n`,
+      );
+    }
+    log(`\n${"!".repeat(74)}`);
+    log(`  ⚠️  PROD TARGET — "${TO}" ka SAARA data replace ho jayega`);
+    log(`      source: ${FROM}`);
+    log(`      Ye rollback ke liye hai. Galat chalaya to prod ka abhi ka data`);
+    log(`      chala jayega.`);
+    log(`${"!".repeat(74)}\n`);
   }
   if (FROM === TO) throw new Error("ABORT: source aur target same hain");
 
