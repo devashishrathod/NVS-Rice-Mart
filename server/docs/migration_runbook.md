@@ -1,12 +1,14 @@
 # Prod Migration — Runbook & Issue Log
 
-> **Status:** Stage pe poori tarah rehearse ho chuka. Prod ke liye ready.
-> **Last updated:** 2026-09-14
+> **Status:** ✅ **PROD PE HO CHUKI — 17 Sep 2026, 20:02–20:15 UTC.**
+> Poora record §13 me hai. Runbook aage ke reference ke liye rakha gaya hai.
+> **Last updated:** 2026-09-17
 > **Scripts:** `server/scripts/`
 
-Ye doc do cheezein rakhta hai:
-1. **Jo issues rehearsal me mile** — taaki prod pe dobara na hon
-2. **Prod migration ka step-by-step runbook** — jab bolein tab chalane ke liye
+Ye doc teen cheezein rakhta hai:
+1. **Jo issues rehearsal me mile** — taaki prod pe dobara na hon (§1)
+2. **Migration ka step-by-step runbook** — §3
+3. **Prod pe asli me jo hua** — §13 (timeline, ek galti jo hui, aur sabak)
 
 ---
 
@@ -473,12 +475,14 @@ Migration **do baar** chalayi — doosre run me sirf index lines, **zero data wr
 
 | # | Cheez | Kab |
 |---|---|---|
-| 1 | **Koi server prod pe purane ya naye code ke saath live to nahi?** (§1.10) — stage pe ye **practically ho gaya tha** (§9), isliye prod pe ise halke me mat lena | Migration se pehle |
+| 1 | ~~Koi server prod pe live to nahi?~~ ✅ **Ho gaya** — 17 Sep ko `pm2 stop nvsricemart` karke, aur `curl` se confirm karke migration chalayi. Prod pe migration ke baad `cleanupLegacyArtifacts` ne **0 changes** dikhaye, yaani koi purana process beech me nahi likh raha tha | ✅ done |
 | 2 | **Force-update mechanism** — app store rollout sabke phone pe turant nahi pahunchta. Purane app version wale naye backend pe tootenge. Backend `minAppVersion` return kare aur app "update karein" dikhaye | Prod deploy se pehle |
-| 3 | **1359 customers (93.5%)** ko pehli baar `PINCODE_REQUIRED` — address onboarding screen chahiye. ✅ Backend ready: **`PUT /locations/upsert`** hi wo API hai (address ho to update, na ho to create — duplicate nahi bante) | App release ke saath |
-| 4 | 13 customers service area ke bahar — `404` screen | App release ke saath |
+| 3 | **1357 customers (93.1%)** ko ab `PINCODE_REQUIRED` mil raha hai — ye 17 Sep ke prod ka asli aankda hai. Backend ready hai (`PUT /locations/upsert`), par purane app installs wale tab tak tootenge jab tak update na karein | 🔴 **ab live hai** |
+| 4 | **12 customers** service area ke bahar — unhe `404 PINCODE_NOT_SERVICEABLE` mil raha hai, "coming soon" screen chahiye | 🔴 **ab live hai** |
 | 5 | Order `PENDING` me atka rahe to auto-cancel job (Q20 — abhi "rehne do" tay hua) | Phase 6 |
-| 6 | `productlocations` dump me hai. 1-2 mahine baad prices confirm ho jayein to dump bhi archive kar dena | Baad me |
+| 6 | `productlocations` (521 rows) ab sirf backup me hai — `/root/backup-20260917-2003` aur `NvsRiceMart-Backup-17Sep`. 1-2 mahine baad prices confirm ho jayein to archive kar dena | Baad me |
+| 7 | `server/.env` **git me commit hota hai** — saare secrets repo me hain. `.gitignore` + keys rotate | Backend |
+| 8 | `package-lock.json` hai hi nahi — isi wajah se `npm ci` nahi chala. Add karna chahiye | Backend |
 
 ---
 
@@ -819,3 +823,175 @@ se mana kar deti hai (`ProdBackup17Sep` refuse ho jata).
 
 M0 free cluster pe Atlas ka apna koi snapshot nahi hota, aur cluster abhi
 sirf **~10 MB / 512 MB** use kar raha hai — jagah ki koi dikkat nahi.
+
+---
+
+## 13. Prod migration — asli record (17 Sep 2026)
+
+Ye wo hai jo **sach me hua**, na ki plan. Agli baar ke liye rakha gaya hai.
+
+**Kahan se:** SSH, `root@72.62.226.17`
+**Downtime:** 20:02 → 20:15 UTC ≈ **13 minute**
+**Result:** ✅ successful — rollback ki zaroorat nahi padi
+
+### Timeline (UTC)
+
+| Waqt | Kya | Sabut |
+|---|---|---|
+| 20:01 | Pre-flight — nginx config padha | `date` output |
+| 20:02 | nginx config backup + maintenance ON + `pm2 stop nvsricemart` | `nginx-nvsricemart.backup-20260917-2002` |
+| 20:02–~20:05 | ⚠️ **Domain poori tarah down** (§13.1) | — |
+| 20:03 | `mongodump` — 996K, 17 bson files | `/root/backup-20260917-2003` |
+| ~20:05 | nginx config theek, maintenance 503 JSON chalu | — |
+| ~20:06 | `git pull origin main` → `b9460e8` | — |
+| ~20:07 | In-cluster backup `NvsRiceMart-Backup-17Sep` | counts match |
+| ~20:08 | Migration **dry run** | — |
+| 20:09:01 | Migration **`--apply`** → 21/21 pass | vendor user ka `createdAt` |
+| 20:14:38 | `backfillTextCase --apply --yes-prod` | undo file ka naam |
+| ~20:15 | `pm2 restart nvsricemart` + maintenance OFF | pm2 uptime |
+
+### 13.1 🔴 Jo galat hua — nginx config khali ho gaya
+
+Maintenance block `awk` se insert karne ki koshish ki. Command me quoting galat
+thi — `awk` ne `%27` ko **file samajh liya** aur fail ho gaya. Do problem ek
+saath mili:
+
+1. `awk ... | sed ... > file` ek **pipeline** hai. `set -e` pipeline me sirf
+   AAKHRI command ka exit code dekhta hai. `sed` safal tha, isliye script ruki
+   hi nahi — aur khali output config pe `cp` ho gaya.
+2. **Khali nginx config valid hoti hai** (koi server block nahi = koi syntax
+   error nahi), isliye `nginx -t` bhi pass ho gaya aur reload bhi.
+
+Natija: `api.nvsricemart.com` ka koi server block hi nahi bacha. ~3 minute
+users ko maintenance JSON ki jagah **connection error** mila.
+
+**Data pe zero asar** — app us waqt waise bhi band thi. Config backup se wapas
+aa gayi.
+
+**Sabak:**
+
+- Config file kabhi shell quoting se mat banao. **Local pe likho, `scp` karo.**
+  Aakhir me yahi kiya aur ek hi baar me chal gaya.
+- `nginx -t` ka pass hona ye SABIT NAHI karta ki config sahi hai — sirf ye ki
+  syntax sahi hai. Reload ke baad **hamesha `curl` se check karo**.
+- Pipeline me `set -e` kaafi nahi, `set -o pipefail` bhi chahiye.
+
+### 13.2 Dry run 257 vs apply 249 — kyun alag the
+
+`locations` ka UPDATE count dry run me **257** tha, apply me **249**. Ye **bug
+nahi hai** — summary "planned operations" ka tally hai, aur apply mode har step
+pe live state dobara padhta hai:
+
+```
+dry run : 8 branch + 1 coord + 1 pickup + 147 bina-type + 100 default = 257
+apply   : 8 branch + 1 coord + 1 pickup + 139 bina-type + 100 default = 249
+```
+
+Dry run me kuch likha nahi jata, isliye jab "bina type wale locations" gine
+gaye to saare **147** the. Apply me wo 8 vendor branches **pehle hi**
+`VENDOR_BRANCH` ban chuke the, isliye 139 bache.
+
+Dono case me **wahi 147 locations** ko type mila — 8 ko `VENDOR_BRANCH`, 139 ko
+`CUSTOMER`. Verify ne confirm kiya: `locations with null type = 0`.
+
+### 13.3 `verify-generic-shape` ne prod pe 23 pass / 1 fail dikhaya
+
+Fail hua check: **"naya order mila"**. Ye data ka problem nahi — wo script ek
+PURANA (migrated) order aur ek NAYA (naye code se bana) order compare karti hai.
+Migration ke turant baad prod pe koi naya order tha hi nahi, isliye compare ho
+hi nahi sakta tha. Script khud kehti hai *"pehle koi naya order banao"*.
+
+Migrated prod ka clone bana ke usi pe smoke chalayi (jo ek naya order banati
+hai) → **31/31 pass**. Yaani baaki 23 check pehle bhi sahi the.
+
+### 13.4 Final counts
+
+```
+                 pehle    baad
+banners              5       5   (same)
+carts              383     383   (same)
+categories          17      17   (same)
+locations          147     147   (same)
+orders              82      82   (same)
+products            90      90   (same)
+settings             1       1   (same)
+subcategories       25      25   (same)
+users             1461    1462   +1 vendor (Nagraj Mart)
+counters             0       4
+vendorprofiles       0       1
+vendorserviceareas   0       6
+productlocations   521       -   DROP (backup me safe)
+──────────────────────────────
+TOTAL             2732    2223     2732 - 521 + 12 = 2223 ✅
+```
+
+**Kuch delete nahi hua** — na user, na order, na address, na product.
+
+### 13.5 Verification — sab pass
+
+```
+migration verify               21/21   (13 data + 8 index)
+backfillTextCase               534 docs / 1924 fields + 6 address soft-delete
+  dobara dry run               0 changes          <- idempotent
+cleanupLegacyArtifacts         0 changes
+live customer states           3/3     (200 / 404 / 400)
+clone pe postMigrationSmoke    75/75
+clone pe verify-generic-shape  31/31
+clone pe verify-locations-live 78/78
+clone pe verify-catalog-live   29/29
+```
+
+Live API se khud check kiya (`https://api.nvsricemart.com`):
+
+```
+vendor login (nagraj@gmail.com)   token mila
+vendor summary                    82 orders · Rs 1,31,816 · 52 delivered, 30 cancelled
+products                          30 · "Guruji" Rs 1750        <- title case laga
+orders                            NVS-2609-000009 · snapshot "Mb Jeera Raw Rice"
+service-areas/check?577001        serviceable · Nagraj Mart
+customer 577001                   200 · 15 categories
+customer 500774                   404 PINCODE_NOT_SERVICEABLE
+customer bina address             400 PINCODE_REQUIRED
+```
+
+Restart ke baad `pm2`: `nvsricemart` online, **restarts 0**, koi error log nahi.
+`IFTV-OTT` chhui tak nahi gayi (uptime 6.5 din, restarts 0).
+
+### 13.6 Plan se jo alag nikla
+
+| Plan me tha | Asli me |
+|---|---|
+| `npm ci` chalana | ❌ **Zaroorat hi nahi padi.** Repo me `package-lock.json` hai hi nahi (`npm ci` fail hota hai), aur `package.json` purane commit se naye tak bilkul nahi badla. Maujooda `node_modules` kaafi tha — aur ye **safer** bhi hai, kyunki lockfile ke bina `npm install` window ke beech me koi dependency ka naya version utha sakta tha. |
+| `mongodump` maujood hoga | ❌ Server pe tha hi nahi. Migration se pehle install kiya — tarball se seedha `/usr/local/bin`, koi apt repo nahi choda. |
+| `pm2 stop <app>` | ⚠️ Server pe **do apps** hain — `nvsricemart` aur `IFTV-OTT`. `pm2 stop all` doosri app bhi band kar deta. Hamesha naam se. |
+| Backup DB ka naam `ProdBackup17Sep` | ❌ Script "prod" wale target pe likhne se mana karti hai. `NvsRiceMart-Backup-17Sep` use kiya. |
+
+### 13.7 Rollback ka rasta (kuch din rakhna)
+
+```bash
+pm2 stop nvsricemart
+mongorestore --uri "$MONGO_URL" --drop /root/backup-20260917-2003
+cd /root/NVS-Rice-Mart && git checkout 871d45f
+pm2 restart nvsricemart
+```
+
+Sirf casing wapas karni ho (migration rakhni ho):
+
+```bash
+node scripts/backfillTextCase.js \
+  --undo=scripts/.backfill-undo-NvsRiceMart-ProdDB-2026-09-17T20-14-38-496Z.json
+```
+
+Maujood hain: `/root/backup-20260917-2003` (mongodump) ·
+`NvsRiceMart-Backup-17Sep` (in-cluster) ·
+`/root/nginx-nvsricemart.backup-20260917-2002` (nginx config) · undo file
+
+### 13.8 Ab bhi khula
+
+| # | Cheez | Kiska |
+|---|---|---|
+| 1 | **1357 customers (93%)** ko ab address screen milegi. Naya app build ready hai, par purane installs wale tootenge — force-update (`minAppVersion`) abhi nahi hai | App team |
+| 2 | Vendor ko batana: `bell` Rs 950 → Rs 1100, 18 products ka stock adjust hua, delivery charge abhi **OFF** hai (toggle vendor khud karega), aur password badalna | Business |
+| 3 | `server/.env` **git me commit hota hai** — MONGO_URL, JWT_SECRET, Cloudinary/Razorpay/2Factor keys sab repo me hain. `.gitignore` + keys rotate karna chahiye | Backend |
+| 4 | `package-lock.json` add karna — deploy reproducible rahe | Backend |
+| 5 | Cluster pe prod ka data 4 jagah pada hai (`Backup-17Sep`, `Rehearsal`, `Rehearsal2`, `PostCheck`). Zaroorat khatam hote hi drop karna | Backend |
