@@ -101,7 +101,9 @@ module.exports = [
       notes: [
         "Vendor sirf **apni** profile padh sakta hai; kisi aur ka id daala to `403 FORBIDDEN`.",
         "`delivery` object ko settings screen pe form me bharo — usi ko `PUT /vendors/me/delivery` se save karna hai.",
-        "`branches[]` aur `serviceAreas[]` **read-only** hain vendor ke liye — inhe admin manage karta hai. UI me inhe disabled/read-only dikhao aur 'change ke liye admin se sampark karein' likh do.",
+        "Response me `branches[]` (poore address ke saath) aur `zipcodes[]` + `serviceAreaCount` aate hain — **`serviceAreas[]` naam ka koi array nahi hai**. Har area ki poori detail chahiye to `GET /vendors/:id/service-areas` alag se call karo.",
+        "Ye dono **read-only** hain vendor ke liye — inhe admin manage karta hai. UI me disabled dikhao aur 'change ke liye admin se sampark karein' likh do.",
+        "`branchCount` sirf **active** branches ginta hai (soft-deleted nahi). Isliye ye `branches[]` ki length se kam ho sakta hai.",
         "`defaultLocationId` batata hai kaunsi branch se distance naapi jaati hai.",
         "`status` `APPROVED` ya `SUSPENDED` hota hai. `SUSPENDED` hone pe vendor ka catalog customers ko dikhna band ho jata hai.",
       ],

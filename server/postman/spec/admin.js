@@ -248,7 +248,7 @@ module.exports = [
       when: ["Vendor list se kisi vendor pe click karne pe."],
       notes: [
         "Vendor bhi yahi endpoint call karta hai par sirf **apni** id ke liye; doosri id pe `403 FORBIDDEN`. Admin kisi ki bhi dekh sakta hai.",
-        "`serviceAreas[]` se dikh jata hai vendor kaunse pincodes cover karta hai.",
+        "`zipcodes[]` se turant dikh jata hai vendor kaunse pincodes cover karta hai (aur `serviceAreaCount` me ginti). Har area ki poori detail — ETA, minOrderAmount, override — ke liye `GET /vendors/:id/service-areas` call karo.",
         "`defaultLocationId` = wo branch jisse distance naapi jati hai.",
       ],
       errors: [E.NOT_FOUND, E.UNAUTH],

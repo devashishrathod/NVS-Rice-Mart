@@ -1,15 +1,15 @@
 {
   "info": {
-    "_postman_id": "17a101ab-db4b-4ddc-a036-82df80f1f18f",
+    "_postman_id": "0adf9751-6698-48c8-879c-c7e61149201b",
     "name": "NVS Rice Mart — Vendor Platform API",
-    "description": "# NVS Rice Mart — Vendor Platform API\n\nSingle-shop se **vendor-based multi-tenant** platform me shift ke baad ki poori API.\nTeen folder hain, teeno **call sequence me** lage hue hain:\n\n| Folder | Kiske liye | Sequence |\n|---|---|---|\n| **Customer** | Mobile app dev | login → address → catalog → cart → verify → preview → order → tracking → cancel |\n| **Vendor** | Vendor panel dev | login → profile/delivery → catalog CRUD → order queue → status transitions |\n| **Admin** | Admin panel dev | login → vendor create → branch → pincode lookup → service area → monitoring |\n\n---\n\n## Shuru kaise karein\n\n1. Environment **\"NVS Rice Mart\"** select karo (upar right corner).\n2. Env me `target` set karo — `local`, `stage` ya `prod`. Har request se pehle `baseUrl` apne aap us hisaab se set ho jata hai.\n3. Apne folder ka **pehla login request** chalao — token apne aap `{{customerToken}}` / `{{vendorToken}}` / `{{adminToken}}` me save ho jata hai. Aage har request usi ko use karti hai, manually paste karne ki zaroorat nahi.\n4. Baaki requests **upar se neeche** chalate jao — har request apne baad wali ke liye id (`{{categoryId}}`, `{{productId}}`, `{{orderId}}`…) env me save karti jaati hai.\n\n## Stage ke test accounts\n\n| Role | Login | Password | Kya expect karein |\n|---|---|---|---|\n| admin | `ricemartnvs@gmail.com` | `Admin@123` | platform summary, 1 vendor |\n| vendor | `nagraj@gmail.com` | `nagraj@123` | apna order queue + 30 products |\n| customer (in-area) | `9886061450` | `Stage@123` | pincode 577001 → catalog `200` |\n| customer (out-of-area) | `9620508145` | `Stage@123` | pincode 500774 → `404 PINCODE_NOT_SERVICEABLE` |\n| customer (no address) | `8660222341` | `Stage@123` | koi address nahi → `400 PINCODE_REQUIRED` |\n\n---\n\n## Response ka shape\n\nHar response ek hi envelope me aata hai:\n\n```jsonc\n// success\n{ \"success\": true,  \"message\": \"…\", \"data\": { … } }\n\n// error\n{ \"success\": false, \"message\": \"…\", \"error\": { … }, \"code\": \"PINCODE_REQUIRED\" }\n```\n\n**Client hamesha `code` pe branch kare, `message` pe nahi** — `message` badal sakta hai, `code` fixed hai.\n\n## Poore platform ke error codes\n\n| HTTP | `code` | Matlab |\n|---|---|---|\n| 400 | `PINCODE_REQUIRED` | Customer ka default address nahi, query me bhi pincode nahi |\n| 404 | `PINCODE_NOT_SERVICEABLE` | Is pincode pe koi vendor nahi |\n| 409 | `PINCODE_ALREADY_ASSIGNED` | Pincode pehle se doosre vendor ka hai |\n| 404 | `PRODUCT_NOT_AVAILABLE_HERE` | Product doosre vendor ka hai |\n| 409 | `CART_VENDOR_CONFLICT` | Cart me doosre vendor ka item |\n| 409 | `VENDOR_NOT_SERVICEABLE` | Cart ka vendor is address pe deliver nahi karta |\n| 503 | `VENDOR_PICKUP_MISSING` | Vendor ka default branch missing (data issue) |\n| 409 | `STOCK_UNAVAILABLE` | Order ke waqt stock kam nikla |\n| 400 | `OUT_OF_RADIUS` | Address vendor ke `maxRadiusKm` se bahar |\n| 400 | `MIN_ORDER_NOT_MET` | Subtotal `minOrderAmount` se kam |\n| 409 | `INVALID_STATUS_TRANSITION` | Is role ko ye status change allowed nahi |\n| 409 | `CART_NOT_VERIFIED` | Order se pehle `verify-delivery` nahi chalayi |\n| 403 | `FORBIDDEN` | Ye resource aapka nahi |\n\n## Saare enums ek jagah\n\n| Enum | Values |\n|---|---|\n| `role` | `user` · `vendor` · `admin` · `staff` |\n| `ORDER_STATUS` | `PENDING` · `ACCEPTED` · `PACKED` · `OUT_FOR_DELIVERY` · `DELIVERED` · `CANCELLED` · `REJECTED` · `CONFIRMED`(legacy) · `INITIATED`(internal) |\n| `PAYMENT_METHODS` | `COD` (`ONLINE` abhi disabled) |\n| `PAYMENT_STATUS` | `NOT_REQUIRED` · `INITIATED` · `SUCCESS` · `FAILED` |\n| `VENDOR_STATUS` | `APPROVED` · `SUSPENDED` |\n| `LOCATION_TYPES` | `CUSTOMER` · `VENDOR_BRANCH` |\n| `PRODUCT_TYPES` | `grocery` · `electronics` · `clothing` |\n| `LOGIN_TYPES` | `email` · `mobile` · `google` · `password` · `other` |\n| `SUBSCRIPTION_TYPES` | `weekly` · `monthly` · `quarterly` · `half_yearly` · `yearly` |\n\n## Order status machine\n\n| Abhi | Vendor | Customer | Admin |\n|---|---|---|---|\n| `PENDING` | `ACCEPTED`, `REJECTED` | `CANCELLED` | — |\n| `ACCEPTED` | `PACKED`, `REJECTED` | `CANCELLED` | — |\n| `PACKED` | `OUT_FOR_DELIVERY` | — | — |\n| `OUT_FOR_DELIVERY` | `DELIVERED` | — | — |\n| `DELIVERED` / `CANCELLED` / `REJECTED` | — | — | — |\n\n**Admin ka column jaan-boojh ke khaali hai** — admin sirf dekh sakta hai, order aage nahi badha sakta.\n\n---\n\n## Hataye gaye endpoints (ab 404 \"Invalid API\" denge)\n\n| Endpoint | Kyun |\n|---|---|\n| `POST /orders/verify-payment` | Razorpay disabled, COD only |\n| `PUT /orders/update/:id` | Admin ab status nahi badal sakta — vendor ka `PUT /orders/:id/status` use karo |\n| `PUT /products/update-product-locations/:productId` | `ProductLocation` model hi delete ho gaya |\n| `DELETE /products/remove-product-locations/:productId` | wahi |\n| `POST /products/check-delivery/:productId` | `GET /service-areas/check?zipcode=` use karo |\n\n## Saved examples ke baare me\n\nHar request ka **200/201 example save hai** aur wo **StageDB pe asli call maar ke** record kiya gaya hai —\nhaath se nahi likha. Sirf 4 OTP endpoints ke examples documented hain (unhe chalane pe asli SMS/email\nchala jata hai), aur un requests ki description me wo saaf likha hai.",
+    "description": "# NVS Rice Mart — Vendor Platform API\r\n\r\nSingle-shop se **vendor-based multi-tenant** platform me shift ke baad ki poori API.\r\nTeen folder hain, teeno **call sequence me** lage hue hain:\r\n\r\n| Folder | Kiske liye | Sequence |\r\n|---|---|---|\r\n| **Customer** | Mobile app dev | login → address → catalog → cart → verify → preview → order → tracking → cancel |\r\n| **Vendor** | Vendor panel dev | login → profile/delivery → catalog CRUD → order queue → status transitions |\r\n| **Admin** | Admin panel dev | login → vendor create → branch → pincode lookup → service area → monitoring |\r\n\r\n---\r\n\r\n## Shuru kaise karein\r\n\r\n1. Environment **\"NVS Rice Mart\"** select karo (upar right corner).\r\n2. Env me `target` set karo — `local`, `stage` ya `prod`. Har request se pehle `baseUrl` apne aap us hisaab se set ho jata hai.\r\n3. Apne folder ka **pehla login request** chalao — token apne aap `{{customerToken}}` / `{{vendorToken}}` / `{{adminToken}}` me save ho jata hai. Aage har request usi ko use karti hai, manually paste karne ki zaroorat nahi.\r\n4. Baaki requests **upar se neeche** chalate jao — har request apne baad wali ke liye id (`{{categoryId}}`, `{{productId}}`, `{{orderId}}`…) env me save karti jaati hai.\r\n\r\n## Stage ke test accounts\r\n\r\n| Role | Login | Password | Kya expect karein |\r\n|---|---|---|---|\r\n| admin | `ricemartnvs@gmail.com` | `Admin@123` | platform summary, 1 vendor |\r\n| vendor | `nagraj@gmail.com` | `nagraj@123` | apna order queue + 30 products |\r\n| customer (in-area) | `9886061450` | `Stage@123` | pincode 577001 → catalog `200` |\r\n| customer (out-of-area) | `9620508145` | `Stage@123` | pincode 500774 → `404 PINCODE_NOT_SERVICEABLE` |\r\n| customer (no address) | `8660222341` | `Stage@123` | koi address nahi → `400 PINCODE_REQUIRED` |\r\n\r\n---\r\n\r\n## Response ka shape\r\n\r\nHar response ek hi envelope me aata hai:\r\n\r\n```jsonc\r\n// success\r\n{ \"success\": true,  \"message\": \"…\", \"data\": { … } }\r\n\r\n// error\r\n{ \"success\": false, \"message\": \"…\", \"error\": { … }, \"code\": \"PINCODE_REQUIRED\" }\r\n```\r\n\r\n**Client hamesha `code` pe branch kare, `message` pe nahi** — `message` badal sakta hai, `code` fixed hai.\r\n\r\n## Poore platform ke error codes\r\n\r\n| HTTP | `code` | Matlab |\r\n|---|---|---|\r\n| 400 | `PINCODE_REQUIRED` | Customer ka default address nahi, query me bhi pincode nahi |\r\n| 404 | `PINCODE_NOT_SERVICEABLE` | Is pincode pe koi vendor nahi |\r\n| 409 | `PINCODE_ALREADY_ASSIGNED` | Pincode pehle se doosre vendor ka hai |\r\n| 404 | `PRODUCT_NOT_AVAILABLE_HERE` | Product doosre vendor ka hai |\r\n| 409 | `CART_VENDOR_CONFLICT` | Cart me doosre vendor ka item |\r\n| 409 | `VENDOR_NOT_SERVICEABLE` | Cart ka vendor is address pe deliver nahi karta |\r\n| 503 | `VENDOR_PICKUP_MISSING` | Vendor ka default branch missing (data issue) |\r\n| 409 | `STOCK_UNAVAILABLE` | Order ke waqt stock kam nikla |\r\n| 400 | `OUT_OF_RADIUS` | Address vendor ke `maxRadiusKm` se bahar |\r\n| 400 | `MIN_ORDER_NOT_MET` | Subtotal `minOrderAmount` se kam |\r\n| 409 | `INVALID_STATUS_TRANSITION` | Is role ko ye status change allowed nahi |\r\n| 409 | `CART_NOT_VERIFIED` | Order se pehle `verify-delivery` nahi chalayi |\r\n| 403 | `FORBIDDEN` | Ye resource aapka nahi |\r\n\r\n## Saare enums ek jagah\r\n\r\n| Enum | Values |\r\n|---|---|\r\n| `role` | `user` · `vendor` · `admin` · `staff` |\r\n| `ORDER_STATUS` | `PENDING` · `ACCEPTED` · `PACKED` · `OUT_FOR_DELIVERY` · `DELIVERED` · `CANCELLED` · `REJECTED` · `CONFIRMED`(legacy) · `INITIATED`(internal) |\r\n| `PAYMENT_METHODS` | `COD` (`ONLINE` abhi disabled) |\r\n| `PAYMENT_STATUS` | `NOT_REQUIRED` · `INITIATED` · `SUCCESS` · `FAILED` |\r\n| `VENDOR_STATUS` | `APPROVED` · `SUSPENDED` |\r\n| `LOCATION_TYPES` | `CUSTOMER` · `VENDOR_BRANCH` |\r\n| `PRODUCT_TYPES` | `grocery` · `electronics` · `clothing` |\r\n| `LOGIN_TYPES` | `email` · `mobile` · `google` · `password` · `other` |\r\n| `SUBSCRIPTION_TYPES` | `weekly` · `monthly` · `quarterly` · `half_yearly` · `yearly` |\r\n\r\n## Order status machine\r\n\r\n| Abhi | Vendor | Customer | Admin |\r\n|---|---|---|---|\r\n| `PENDING` | `ACCEPTED`, `REJECTED` | `CANCELLED` | — |\r\n| `ACCEPTED` | `PACKED`, `REJECTED` | `CANCELLED` | — |\r\n| `PACKED` | `OUT_FOR_DELIVERY` | — | — |\r\n| `OUT_FOR_DELIVERY` | `DELIVERED` | — | — |\r\n| `DELIVERED` / `CANCELLED` / `REJECTED` | — | — | — |\r\n\r\n**Admin ka column jaan-boojh ke khaali hai** — admin sirf dekh sakta hai, order aage nahi badha sakta.\r\n\r\n---\r\n\r\n## Hataye gaye endpoints (ab 404 \"Invalid API\" denge)\r\n\r\n| Endpoint | Kyun |\r\n|---|---|\r\n| `POST /orders/verify-payment` | Razorpay disabled, COD only |\r\n| `PUT /orders/update/:id` | Admin ab status nahi badal sakta — vendor ka `PUT /orders/:id/status` use karo |\r\n| `PUT /products/update-product-locations/:productId` | `ProductLocation` model hi delete ho gaya |\r\n| `DELETE /products/remove-product-locations/:productId` | wahi |\r\n| `POST /products/check-delivery/:productId` | `GET /service-areas/check?zipcode=` use karo |\r\n\r\n## Saved examples ke baare me\r\n\r\nHar request ka **200/201 example save hai** aur wo **StageDB pe asli call maar ke** record kiya gaya hai —\r\nhaath se nahi likha. Sirf 4 OTP endpoints ke examples documented hain (unhe chalane pe asli SMS/email\r\nchala jata hai), aur un requests ki description me wo saaf likha hai.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "event": [
     {
       "listen": "prerequest",
       "script": {
-        "id": "476cbe55-e409-4a8e-908b-950c4fb3163f",
+        "id": "89a4b12c-6689-4db1-991b-f53284c84ef1",
         "type": "text/javascript",
         "exec": [
           "// `target` badal ke baseUrl switch karo: local | stage | prod",
@@ -29,16 +29,16 @@
   ],
   "item": [
     {
-      "id": "ee30908c-dbec-4974-927e-73366d6bac03",
+      "id": "7f1c702f-1874-4f80-a824-7423b0c78391",
       "name": "1 · Customer (mobile app)",
       "description": "**Mobile app ka poora flow — login se delivery tak, isi order me.**\n\nSabse pehle `01 Auth → 06 Login with password` chalao; token `{{customerToken}}` me save ho jayega.\n\nSabse zyada dhyan in teen pe do — inke bina app tutegi:\n- **`400 PINCODE_REQUIRED`** → address add karne ki screen dikhao (stage pe ~93% customers ke paas address hai hi nahi)\n- **`404 PINCODE_NOT_SERVICEABLE`** → \"abhi yahan available nahi\" screen\n- **`409 CART_VENDOR_CONFLICT`** → \"cart clear karke naya item add karein?\" dialog, phir `?replaceCart=true`\n\nAur order se pehle ye sequence tod mat dena: **verify-delivery → preview → create**.",
       "item": [
         {
-          "id": "28269484-a987-4a88-ba8f-952c7eb613ab",
+          "id": "02839481-656e-4f59-98af-02c7511ea99b",
           "name": "01 Auth",
           "item": [
             {
-              "id": "6e110671-2fd4-4bb7-918c-a6375c5d8bd5",
+              "id": "dacbf4ed-b111-4add-a34f-68060f5fbde9",
               "name": "01 · Register (email + password)",
               "request": {
                 "method": "POST",
@@ -74,7 +74,7 @@
               },
               "response": [
                 {
-                  "id": "e6cbd24b-079d-45cc-a856-4b8341188353",
+                  "id": "28f38242-2f00-42f3-9518-28c3628007b3",
                   "name": "201 · Created",
                   "originalRequest": {
                     "method": "POST",
@@ -121,7 +121,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "c5a2a4ed-d74b-4f5c-98d6-963220cd3d54",
+                    "id": "9a8714fe-81db-456d-aaec-3da70a4cdbc4",
                     "type": "text/javascript",
                     "exec": [
                       "const j = pm.response.json();",
@@ -143,7 +143,7 @@
               ]
             },
             {
-              "id": "bec7e1bd-801d-45db-b8b3-2ee36a2f17f8",
+              "id": "6eb3efad-0ca9-400e-9d39-e2f4d5844ee3",
               "name": "02 · Login/Signup se OTP bhejo (mobile)",
               "request": {
                 "method": "POST",
@@ -179,7 +179,7 @@
               },
               "response": [
                 {
-                  "id": "d2b2f9dc-1f1e-4118-8193-7821ca328bbf",
+                  "id": "00afb9ac-3f53-4d0d-8e0a-61b4e1a89f4e",
                   "name": "200 · OK (documented)",
                   "originalRequest": {
                     "method": "POST",
@@ -226,7 +226,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "d0eedc5c-38ca-4582-9576-4f4c32af4090",
+                    "id": "c04017a5-6a88-47d8-ac5e-f758da3f7a52",
                     "type": "text/javascript",
                     "exec": [
                       "const j = pm.response.json();",
@@ -243,7 +243,7 @@
               ]
             },
             {
-              "id": "74eb986d-a13d-432e-802c-913128e23580",
+              "id": "fce49a55-5499-471a-a4a2-8696f2c3a4af",
               "name": "03 · OTP verify karo (mobile) → token",
               "request": {
                 "method": "PUT",
@@ -279,7 +279,7 @@
               },
               "response": [
                 {
-                  "id": "205b04fa-e6fb-4933-b6f3-037bdb4ba709",
+                  "id": "12c5bea1-85ca-48a4-9631-39ecc578c62a",
                   "name": "200 · OK (documented)",
                   "originalRequest": {
                     "method": "PUT",
@@ -326,7 +326,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "f95cc58b-fe7c-485d-9cf9-20db6bb6dae7",
+                    "id": "a8124e0c-bde9-4910-8f6a-48b43bc04453",
                     "type": "text/javascript",
                     "exec": [
                       "const j = pm.response.json();",
@@ -348,7 +348,7 @@
               ]
             },
             {
-              "id": "a5463c91-89f8-45c9-95a2-90b12b45b55e",
+              "id": "f94c49c3-0d65-4481-847b-fa1724de70ef",
               "name": "04 · Login/Signup se OTP bhejo (email)",
               "request": {
                 "method": "POST",
@@ -384,7 +384,7 @@
               },
               "response": [
                 {
-                  "id": "7f3cbb60-c7ec-4597-b8b6-51e5389d2a12",
+                  "id": "8ae8eda1-a848-4703-b769-a7304a5a95bf",
                   "name": "200 · OK (documented)",
                   "originalRequest": {
                     "method": "POST",
@@ -431,7 +431,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "bc437663-c3bc-46c6-bad4-776b3b236363",
+                    "id": "b652baea-f360-4177-b458-3ad56aa45946",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
@@ -441,7 +441,7 @@
               ]
             },
             {
-              "id": "e49fea36-d9cc-4b26-8a4d-c65907e39364",
+              "id": "515a605c-9317-48e7-a8c5-f07be1ad0de1",
               "name": "05 · OTP verify karo (email) → token",
               "request": {
                 "method": "PUT",
@@ -477,7 +477,7 @@
               },
               "response": [
                 {
-                  "id": "43fc3738-8813-4d28-8b1c-1de425efc4f4",
+                  "id": "bf565dae-b147-4552-9cee-9b5635876f7a",
                   "name": "200 · OK (documented)",
                   "originalRequest": {
                     "method": "PUT",
@@ -524,7 +524,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "52711e6c-a311-4e38-a4a5-7c39e6b93db8",
+                    "id": "34b52c72-6c91-4fa4-95ce-bd56a805fe94",
                     "type": "text/javascript",
                     "exec": [
                       "const j = pm.response.json();",
@@ -546,7 +546,7 @@
               ]
             },
             {
-              "id": "70c51903-5413-4b42-9abc-2859ac84d21a",
+              "id": "1929cbd5-1b03-43e9-a320-095df5295c0f",
               "name": "06 · ⭐ Login with password (testing ke liye yahi use karo)",
               "request": {
                 "method": "POST",
@@ -582,7 +582,7 @@
               },
               "response": [
                 {
-                  "id": "ba80bf9a-adc5-4de1-9d96-169c64a1f129",
+                  "id": "a4136c4f-e09f-4f9d-80fc-0145565e5ffa",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "POST",
@@ -629,7 +629,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "185d34c9-28b6-41b7-a0c1-c465165be99d",
+                    "id": "4710b4fd-0020-48b1-a35f-44605eff5b21",
                     "type": "text/javascript",
                     "exec": [
                       "const j = pm.response.json();",
@@ -653,11 +653,11 @@
           ]
         },
         {
-          "id": "f486f79a-7eec-4780-80d2-5ea880124663",
+          "id": "e4070dd7-9b12-438a-9ce1-197174ccdcc4",
           "name": "02 Profile",
           "item": [
             {
-              "id": "38e42d14-d274-4874-8f9d-91bd00a6a1c0",
+              "id": "b61c8ac3-fd93-4542-b6a3-666049799f1a",
               "name": "07 · Meri profile",
               "request": {
                 "method": "GET",
@@ -686,7 +686,7 @@
               },
               "response": [
                 {
-                  "id": "ae5c2984-5972-4d50-ad7b-bb287695b201",
+                  "id": "9b375b1f-1f64-488b-ad0d-9724f8579f12",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "GET",
@@ -729,7 +729,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "a6b47db4-1901-41e7-8455-88e85bcca3b6",
+                    "id": "890c13c4-6dda-4508-9f82-f956f56f4298",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
@@ -739,7 +739,7 @@
               ]
             },
             {
-              "id": "6444dafe-24dc-4648-bf4c-fa28304f2c48",
+              "id": "4cc90147-ac8a-4989-af75-c7a0a52ec4ae",
               "name": "08 · Profile update karo",
               "request": {
                 "method": "PUT",
@@ -803,7 +803,7 @@
               },
               "response": [
                 {
-                  "id": "fb261133-5aa9-453d-9ca8-921c77cfd076",
+                  "id": "0d0826ef-1a61-405f-ac02-41481dce41c3",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "PUT",
@@ -881,7 +881,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "b7dc3b76-f130-4ba6-9947-294a1368b4c5",
+                    "id": "89e15adf-6a2d-4984-891a-d2e3e954906d",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
@@ -893,11 +893,11 @@
           ]
         },
         {
-          "id": "2ee55697-dd33-4410-890b-3ea8367a900b",
+          "id": "a212b243-fdce-4806-9878-5f450d57013f",
           "name": "03 Address",
           "item": [
             {
-              "id": "f61bba34-bc98-489d-9fe4-f4141c7f252e",
+              "id": "1fe51ce0-df91-4ee4-b4a9-2eee5c6622b1",
               "name": "09 · 🆕 Pincode serviceable hai ya nahi",
               "request": {
                 "method": "GET",
@@ -933,7 +933,7 @@
               },
               "response": [
                 {
-                  "id": "6fd5f5bd-dd96-420d-bbbc-85597049b9d7",
+                  "id": "13253e96-7a2f-46bb-a441-ec0d90e35a8a",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "GET",
@@ -983,7 +983,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "34be6045-a055-43dc-918b-fb39df732a34",
+                    "id": "0c9ef466-5cfa-4bf6-a532-15a6ed02c980",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
@@ -993,7 +993,7 @@
               ]
             },
             {
-              "id": "be5049a4-0302-4ed3-ae84-d383623e0885",
+              "id": "27b8dcf9-b189-4405-8e2b-bb09f85dd10c",
               "name": "10 · Naya address add karo",
               "request": {
                 "method": "POST",
@@ -1036,7 +1036,7 @@
               },
               "response": [
                 {
-                  "id": "2d9c2a93-a5dd-409a-be95-dd45230b52ef",
+                  "id": "a8b1240c-69fa-4e54-aecb-5cb7af69bc12",
                   "name": "201 · Created",
                   "originalRequest": {
                     "method": "POST",
@@ -1093,7 +1093,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "63dbb214-a737-4f54-a930-774052de39f5",
+                    "id": "0f693b5f-f3dd-4fd9-835e-1912d2a3f7d5",
                     "type": "text/javascript",
                     "exec": [
                       "const j = pm.response.json();",
@@ -1110,7 +1110,7 @@
               ]
             },
             {
-              "id": "32ea11e7-36af-48e6-98ac-a70ad1df6630",
+              "id": "37a3d5af-76ae-4d68-940d-134005460b89",
               "name": "10b · 🆕 Mera address save karo (upsert)",
               "request": {
                 "method": "PUT",
@@ -1153,7 +1153,7 @@
               },
               "response": [
                 {
-                  "id": "3bbbd903-25ae-4825-a04d-a5f50d40e90d",
+                  "id": "2ebdb92e-5c56-467b-a7cd-17c70211a27e",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "PUT",
@@ -1210,7 +1210,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "8e8ed0d8-6dd0-46d2-8cb7-44c8c9488e6f",
+                    "id": "05fcf8b0-2281-4c85-bb80-10be9f8f0c57",
                     "type": "text/javascript",
                     "exec": [
                       "const j = pm.response.json();",
@@ -1227,7 +1227,7 @@
               ]
             },
             {
-              "id": "7882f652-154d-435f-81c7-1132fabe7afe",
+              "id": "82a0cb39-0725-4b90-90f1-3d2537dba96e",
               "name": "11 · Mere saare address",
               "request": {
                 "method": "GET",
@@ -1306,7 +1306,7 @@
               },
               "response": [
                 {
-                  "id": "4dbbc6c9-5a84-4843-935d-37b3f3748acf",
+                  "id": "1d070eda-d197-4513-a26a-3bd5b151c91f",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "GET",
@@ -1399,7 +1399,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "8d128273-a6b8-4b9b-a725-c31f10ab4f2c",
+                    "id": "437a7634-830e-483b-9cdb-9ef833b39f99",
                     "type": "text/javascript",
                     "exec": [
                       "const j = pm.response.json();",
@@ -1416,7 +1416,7 @@
               ]
             },
             {
-              "id": "2a136ab7-ed7a-45aa-9633-99427e3bdc7a",
+              "id": "7127aab0-cf02-4df4-9885-6ea136137add",
               "name": "12 · Ek address padho",
               "request": {
                 "method": "GET",
@@ -1446,7 +1446,7 @@
               },
               "response": [
                 {
-                  "id": "d079f37a-e544-443c-bbc6-0639e4709f63",
+                  "id": "76c0f874-efc7-4bd5-ad9a-d4b6c083e92c",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "GET",
@@ -1490,7 +1490,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "76ff79d6-0b4b-4043-b64f-809ac8833c54",
+                    "id": "889b2bf2-6400-4ba6-a061-195deb93539b",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
@@ -1500,7 +1500,7 @@
               ]
             },
             {
-              "id": "179de43f-1751-44ef-8424-06e105f24029",
+              "id": "69b7a66f-10b3-49a0-9009-66e6af648456",
               "name": "13 · 🆕 Address edit karo",
               "request": {
                 "method": "PUT",
@@ -1544,7 +1544,7 @@
               },
               "response": [
                 {
-                  "id": "027c4ed8-9198-4067-aab5-0865f80071cd",
+                  "id": "7b2bac85-aec7-4a20-a86a-376c4db85da4",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "PUT",
@@ -1602,7 +1602,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "cdfbc23b-34c6-4ef4-b1ba-1320dfc7b300",
+                    "id": "9e895b13-8f64-4c37-a1e8-da910ca8e317",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
@@ -1612,7 +1612,7 @@
               ]
             },
             {
-              "id": "f5ca2f4c-4969-455a-b151-9f1bb96b92a1",
+              "id": "2119a083-1da0-41fb-926c-d8725f9f5bad",
               "name": "14 · 🆕 Ise default address bana do",
               "request": {
                 "method": "PUT",
@@ -1642,7 +1642,7 @@
               },
               "response": [
                 {
-                  "id": "fed711fe-d503-4803-b1cf-2f90ed199c1d",
+                  "id": "1799b5cc-03ac-483c-9d68-b1652392dce0",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "PUT",
@@ -1686,7 +1686,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "b655f839-54bd-48c7-bd75-86e0c1ac2014",
+                    "id": "39f04ef0-06cc-441f-b66a-e3bd4c12b288",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
@@ -1696,7 +1696,7 @@
               ]
             },
             {
-              "id": "0b0cdb81-0c74-4a98-9056-ecdde027d973",
+              "id": "06599306-4791-46a3-94ff-e32234d600e6",
               "name": "15 · Address delete karo",
               "request": {
                 "method": "DELETE",
@@ -1726,7 +1726,7 @@
               },
               "response": [
                 {
-                  "id": "3484508c-43a4-4f22-9d46-05a8d4f31fcd",
+                  "id": "d62bcb7b-553d-4924-84c8-2ba7f772da01",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "DELETE",
@@ -1770,7 +1770,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "ef468955-ec14-460a-a4f5-5a8ee740ccc8",
+                    "id": "eae5afb9-6b7f-4fa9-8cc3-bdcec76f924b",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
@@ -1782,11 +1782,11 @@
           ]
         },
         {
-          "id": "8890610d-d410-429e-929f-950d0bada695",
+          "id": "410ffcbe-e1b6-4596-a9bb-6b6f3cfaebec",
           "name": "04 Catalog",
           "item": [
             {
-              "id": "7f8b64f5-0a6a-4008-b20f-3f094cd2e065",
+              "id": "5faadf16-f752-4a3e-82a5-daaec91ca776",
               "name": "16 · Categories (vendor-scoped)",
               "request": {
                 "method": "GET",
@@ -1865,7 +1865,7 @@
               },
               "response": [
                 {
-                  "id": "ff9a23fe-1328-48ff-9ab2-58a1f2ea4e46",
+                  "id": "26bceeb5-992e-42cc-819b-e5ec8662faca",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "GET",
@@ -1958,7 +1958,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "5f9a6e26-1428-4782-b601-e7ea0a7a0c45",
+                    "id": "bdd5ee6c-74ae-41f4-b70a-95808d6e6aba",
                     "type": "text/javascript",
                     "exec": [
                       "const j = pm.response.json();",
@@ -1975,7 +1975,7 @@
               ]
             },
             {
-              "id": "a675a39c-9c4e-475c-81ab-462c4fe1feb0",
+              "id": "d2f58a24-0b4e-458d-a17e-6f1a3964ebd3",
               "name": "17 · Ek category",
               "request": {
                 "method": "GET",
@@ -2019,7 +2019,7 @@
               },
               "response": [
                 {
-                  "id": "471fff4e-b668-446b-b983-717e548bf9ca",
+                  "id": "3c10a48b-92d7-4a7b-93de-7b5380211b42",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "GET",
@@ -2077,7 +2077,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "2a27d77b-1925-4fa8-83c0-36617ce08b26",
+                    "id": "830c6cdf-aaf6-4156-a9c2-8b29ef080bbb",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
@@ -2087,7 +2087,7 @@
               ]
             },
             {
-              "id": "fe080a40-cc2f-45bb-aa0e-044d2ae2fa8e",
+              "id": "5c7a4bb5-fe11-4ea9-a305-258409a81ad1",
               "name": "18 · SubCategories (category ke andar)",
               "request": {
                 "method": "GET",
@@ -2165,7 +2165,7 @@
               },
               "response": [
                 {
-                  "id": "8d70b8d1-ead3-4dda-b14e-12964d8a5630",
+                  "id": "9951991e-1e4d-473f-a46a-3ec4d1bd13ce",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "GET",
@@ -2257,7 +2257,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "67bfa88a-2b8f-4f3d-bc38-284200f6ca62",
+                    "id": "2e58811c-90a7-4c61-b9ed-dfe7198db747",
                     "type": "text/javascript",
                     "exec": [
                       "const j = pm.response.json();",
@@ -2274,7 +2274,7 @@
               ]
             },
             {
-              "id": "ba08035d-df0f-411d-abe6-5b1abba95b3e",
+              "id": "2580fece-b94d-43c0-9b4d-10779dcb4032",
               "name": "19 · Ek subcategory",
               "request": {
                 "method": "GET",
@@ -2318,7 +2318,7 @@
               },
               "response": [
                 {
-                  "id": "19d63495-6caf-4b1d-b78c-4490d29d1777",
+                  "id": "39fed4c2-9227-4452-99be-df2d9328393b",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "GET",
@@ -2376,7 +2376,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "84638a8e-8982-4d1c-9e1f-226b572f9e78",
+                    "id": "b72805a9-a579-4f78-b8e1-afef3ee14053",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
@@ -2386,7 +2386,7 @@
               ]
             },
             {
-              "id": "e056b3dc-76ee-492e-9055-efc691373c9b",
+              "id": "e7364866-a26f-4a4a-bb05-dc81ba8cd0a3",
               "name": "20 · Products list",
               "request": {
                 "method": "GET",
@@ -2494,7 +2494,7 @@
               },
               "response": [
                 {
-                  "id": "e9e13543-bb13-455f-9229-93195a9f51e7",
+                  "id": "26334264-6f02-4374-8faa-cb27a6ea5a41",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "GET",
@@ -2616,7 +2616,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "b7795ddd-fcaa-4455-a116-04828b8991ee",
+                    "id": "9b9d17b0-dc92-49e2-8fe6-531e7ee2897b",
                     "type": "text/javascript",
                     "exec": [
                       "const j = pm.response.json();",
@@ -2633,7 +2633,7 @@
               ]
             },
             {
-              "id": "79efd635-58a8-478c-8845-7896eef2aa99",
+              "id": "79f46ff7-7a82-4846-81e2-538f81fbd9a1",
               "name": "21 · Product detail",
               "request": {
                 "method": "GET",
@@ -2677,7 +2677,7 @@
               },
               "response": [
                 {
-                  "id": "dc7eb008-a37b-43f3-be0a-d9c1ed0b83fa",
+                  "id": "37f1cb18-77e2-4630-b1f1-2c2d415736b0",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "GET",
@@ -2735,7 +2735,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "ccf76c43-f6ee-4b75-92f2-e0ca153e305c",
+                    "id": "9455866b-634f-4f6c-8b03-7c0256b999ae",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
@@ -2747,11 +2747,11 @@
           ]
         },
         {
-          "id": "bcf56b31-fb8a-4235-a8cc-96484f5f33b4",
+          "id": "04f28223-4b28-4c18-9e0f-f9f78150d93f",
           "name": "05 Cart",
           "item": [
             {
-              "id": "02733966-70ea-4ab0-9a4a-9e6e189d0bfb",
+              "id": "ebb8df96-3100-4282-8326-cb868d481970",
               "name": "22 · Cart me item add / quantity update",
               "request": {
                 "method": "POST",
@@ -2802,7 +2802,7 @@
               },
               "response": [
                 {
-                  "id": "281a27eb-6a02-4449-9ddc-b3a556b9d56b",
+                  "id": "5ba01eaa-3989-45a9-a7ed-766c500b3df4",
                   "name": "201 · Created",
                   "originalRequest": {
                     "method": "POST",
@@ -2867,7 +2867,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "cbaeaa9b-2af9-489b-803d-04492831a69f",
+                    "id": "0ad7982e-af88-4afe-a8ab-7a7c4736c6d4",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"201 Created\", () => pm.response.to.have.status(201));"
@@ -2877,7 +2877,7 @@
               ]
             },
             {
-              "id": "4abea18d-c4ec-48eb-b917-fa5c3f1128fa",
+              "id": "228715c2-d8cd-46b3-8c8f-4d667c92abe5",
               "name": "23 · Mera cart",
               "request": {
                 "method": "GET",
@@ -2906,7 +2906,7 @@
               },
               "response": [
                 {
-                  "id": "94d13ac7-0f15-4e3f-a601-40c8b572034f",
+                  "id": "7a284a48-01ea-4eb2-ab0c-4b529a4363ae",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "GET",
@@ -2949,7 +2949,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "c21597a2-3fa9-4c6b-9707-ab435b71993f",
+                    "id": "05379889-ba61-4d67-8c39-7082660875cb",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
@@ -2959,7 +2959,7 @@
               ]
             },
             {
-              "id": "e8791dfc-51eb-4dda-9629-dd44c191a6bb",
+              "id": "a60cf730-b9e8-4afc-879d-5cd7a1519cd5",
               "name": "24 · Item hatao / quantity ghatao",
               "request": {
                 "method": "PUT",
@@ -3003,7 +3003,7 @@
               },
               "response": [
                 {
-                  "id": "ad34c776-404b-4d71-ac29-985fccaaec92",
+                  "id": "9358ee86-d9e3-4790-a23d-71cf40a18e21",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "PUT",
@@ -3061,7 +3061,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "73907e73-c160-40fa-94af-0a6de85bdc9c",
+                    "id": "536a1a6f-1db1-4921-b00c-8653c73c6270",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
@@ -3071,7 +3071,7 @@
               ]
             },
             {
-              "id": "5e6884b3-7be6-4597-add9-c30b20c4370e",
+              "id": "6dfb9c76-5a7e-4af2-9594-6335d6f562fc",
               "name": "25 · ⭐ Delivery verify karo (order se pehle ZARURI)",
               "request": {
                 "method": "POST",
@@ -3114,7 +3114,7 @@
               },
               "response": [
                 {
-                  "id": "1743b300-a3fe-48ad-9850-929cf4a40702",
+                  "id": "9d34949c-bb4a-4ea2-a875-1e30e5387d76",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "POST",
@@ -3171,7 +3171,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "79bf1a05-a758-4bc3-ac64-e154eb02d2cf",
+                    "id": "700a5440-4052-4b51-a85a-95ccc99b1687",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
@@ -3181,7 +3181,7 @@
               ]
             },
             {
-              "id": "72479e00-12dd-40eb-9ea1-6e16b3cfbfec",
+              "id": "037e55e7-5213-453f-aadd-d7863ea07d2d",
               "name": "26 · Cart khaali karo",
               "request": {
                 "method": "DELETE",
@@ -3210,7 +3210,7 @@
               },
               "response": [
                 {
-                  "id": "1cc46ba7-2149-41d3-9d71-4c0ba1de178d",
+                  "id": "fbe794b1-7912-4102-a9f3-2b702409664c",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "DELETE",
@@ -3253,7 +3253,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "3905602f-7cfa-4739-a4fb-232bcd2445d0",
+                    "id": "d61d1ea3-1e33-4c70-8be7-9983cda8ae54",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
@@ -3265,11 +3265,11 @@
           ]
         },
         {
-          "id": "4af28be3-8bc5-421d-a26e-a5433fa0b7f5",
+          "id": "0e35dd04-5eaf-40ba-86cd-66916cdf1851",
           "name": "06 Checkout & Orders",
           "item": [
             {
-              "id": "74493f5d-6887-456f-9168-ac1c70d610cf",
+              "id": "47a2f78b-a90d-4d52-8263-e342a221d7d7",
               "name": "27 · 🆕 ⭐ Order preview (checkout screen ka data)",
               "request": {
                 "method": "POST",
@@ -3312,7 +3312,7 @@
               },
               "response": [
                 {
-                  "id": "c43f5d09-775f-4014-bd63-8048b36ece32",
+                  "id": "bb62148f-fa17-43a3-ab55-9cc921b0ead6",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "POST",
@@ -3369,7 +3369,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "070a6417-1282-43eb-976a-98a5826e879e",
+                    "id": "c8ba3b11-cf86-4816-b2f9-2a291551f4c2",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
@@ -3379,7 +3379,7 @@
               ]
             },
             {
-              "id": "04f0a444-7a8d-4dbb-a2f5-2604026f05bd",
+              "id": "92b3a4b9-02c1-439f-a52c-0111b7bc78ee",
               "name": "28 · Order place karo (COD)",
               "request": {
                 "method": "POST",
@@ -3422,7 +3422,7 @@
               },
               "response": [
                 {
-                  "id": "31cd6034-d28d-425b-8495-4fd6faab49d0",
+                  "id": "2b93230c-37f8-498c-92c0-dd3cc10bd78f",
                   "name": "201 · Created",
                   "originalRequest": {
                     "method": "POST",
@@ -3479,7 +3479,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "72aafa94-2493-4bf3-a1d5-aea06ac0ec1b",
+                    "id": "403c1fb6-3df7-4c26-b656-e576da961b9c",
                     "type": "text/javascript",
                     "exec": [
                       "const j = pm.response.json();",
@@ -3498,7 +3498,7 @@
               ]
             },
             {
-              "id": "3f053537-2082-4bbe-8304-f299613391c0",
+              "id": "d2aad82f-4710-405b-ba62-35b7ce979f25",
               "name": "29 · Mere orders (order history)",
               "request": {
                 "method": "GET",
@@ -3583,7 +3583,7 @@
               },
               "response": [
                 {
-                  "id": "47aee44a-919d-4b84-9ed5-de6ca7e40b85",
+                  "id": "94e2d30c-d9cb-4bb9-b887-9af4ea44fa36",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "GET",
@@ -3682,7 +3682,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "81c39530-9e26-415e-a761-9f6f4d93c141",
+                    "id": "92fcd2ef-228d-4853-8faf-7b9294eafdb1",
                     "type": "text/javascript",
                     "exec": [
                       "const j = pm.response.json();",
@@ -3699,7 +3699,7 @@
               ]
             },
             {
-              "id": "e9a7c1f5-0183-42d2-bacc-9c23ba27bbeb",
+              "id": "cadc977c-09bf-4787-a7f7-db5f946c9ec5",
               "name": "30 · Order detail / tracking",
               "request": {
                 "method": "GET",
@@ -3729,7 +3729,7 @@
               },
               "response": [
                 {
-                  "id": "3da358a6-4af2-4ee1-bbb9-6f04f8aca1b3",
+                  "id": "b81a4423-c490-43f7-a2b0-690ba37f79db",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "GET",
@@ -3773,7 +3773,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "cb15bef0-b56e-4711-94f1-4582cfaa2221",
+                    "id": "15373349-cedc-46b5-8043-dad7455693ae",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
@@ -3783,7 +3783,7 @@
               ]
             },
             {
-              "id": "54d0bdb2-809b-493c-ace3-cd29a49c14d1",
+              "id": "f7ac198e-1329-4ac2-beae-fcdd5f1b56b6",
               "name": "31 · 🆕 Order cancel karo",
               "request": {
                 "method": "PUT",
@@ -3827,7 +3827,7 @@
               },
               "response": [
                 {
-                  "id": "1618fa16-8355-4ac3-aab1-29131fe10bef",
+                  "id": "e9e8de54-b7af-4aee-8043-27ff8c2ad9c6",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "PUT",
@@ -3885,7 +3885,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "4dcc6622-ddca-4081-b8c2-c956704dfdb8",
+                    "id": "141c9272-8fde-458e-9622-fbd364e5ece9",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
@@ -3897,11 +3897,11 @@
           ]
         },
         {
-          "id": "bdb120ca-465c-48fa-9aa1-46f1d3ac016b",
+          "id": "9830fb65-c345-4b39-b1c0-7ea32ec58b02",
           "name": "07 Content (read-only)",
           "item": [
             {
-              "id": "fb9a82dc-2513-4e66-94d8-741c7498c81c",
+              "id": "22681fb2-6440-42c3-9bfb-97f01c7c8bda",
               "name": "32 · Banners",
               "request": {
                 "method": "GET",
@@ -3968,7 +3968,7 @@
               },
               "response": [
                 {
-                  "id": "3be8ad0b-8c67-4565-b5c3-1ee9ea4fd2b3",
+                  "id": "6c208ebe-8e15-427f-857c-9c0b4681c4f5",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "GET",
@@ -4049,7 +4049,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "7b9ceea9-cd1f-433c-b6ee-05e33e4c1ecd",
+                    "id": "0d6fc8aa-bb27-4f5a-a68c-a6bb905d19e8",
                     "type": "text/javascript",
                     "exec": [
                       "const j = pm.response.json();",
@@ -4066,7 +4066,7 @@
               ]
             },
             {
-              "id": "518abe70-804e-415b-9a09-b5c6b3e73935",
+              "id": "ea19431b-0f9a-407d-b146-fad7311fbbe7",
               "name": "33 · Ek banner",
               "request": {
                 "method": "GET",
@@ -4096,7 +4096,7 @@
               },
               "response": [
                 {
-                  "id": "721aaa68-5110-4e8c-8e57-98a118593e8a",
+                  "id": "8e7794e5-2d6f-4b86-a709-cdc714af202b",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "GET",
@@ -4140,7 +4140,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "6faa8710-e7b4-483c-a769-988bd9cb36b4",
+                    "id": "4a97c285-9d0f-40f9-8452-8dc82cdaadbd",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
@@ -4150,7 +4150,7 @@
               ]
             },
             {
-              "id": "1b92945f-538d-4479-8da9-9d22d46b4801",
+              "id": "592548ba-22ec-4aae-a840-bd02ce6c76eb",
               "name": "34 · Terms & Conditions",
               "request": {
                 "method": "GET",
@@ -4211,7 +4211,7 @@
               },
               "response": [
                 {
-                  "id": "28655858-63b7-49a1-9f47-9262fbdfd129",
+                  "id": "fbe80598-d7cb-426a-b724-8f31d04f8524",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "GET",
@@ -4286,7 +4286,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "47d9ed22-0b33-42d8-a253-d27864bd3f4f",
+                    "id": "ee21b2fb-1bd9-4ea6-8f5e-bc70c8e782a3",
                     "type": "text/javascript",
                     "exec": [
                       "const j = pm.response.json();",
@@ -4303,7 +4303,7 @@
               ]
             },
             {
-              "id": "9a04899a-4910-4da9-a774-57f6917db21d",
+              "id": "10371a63-cf02-4aa6-9e32-7fb3467a2a44",
               "name": "35 · Ek term",
               "request": {
                 "method": "GET",
@@ -4333,7 +4333,7 @@
               },
               "response": [
                 {
-                  "id": "569d0e15-e12c-4271-b791-ab0a88c4426e",
+                  "id": "a70f45d3-9123-4591-9623-b5b848c75b50",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "GET",
@@ -4377,7 +4377,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "9379de9b-dedf-41ae-8be6-11df2c84c943",
+                    "id": "57f48ff5-db66-4469-b954-d95e1ead0aff",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
@@ -4387,7 +4387,7 @@
               ]
             },
             {
-              "id": "00bef523-73be-4ddb-bc28-0359df82dd2b",
+              "id": "ec9c47af-2aa9-46ec-8ed5-0f6af7071bd1",
               "name": "36 · Privacy Policy",
               "request": {
                 "method": "GET",
@@ -4448,7 +4448,7 @@
               },
               "response": [
                 {
-                  "id": "d502dbd5-18af-4eeb-8a9d-938da65802d0",
+                  "id": "671a4598-8d05-4e07-bf8f-7efb187254a9",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "GET",
@@ -4523,7 +4523,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "5d2eab1a-f36c-48b4-b4ce-388d1ad8b18e",
+                    "id": "70a04b61-3bfe-4686-9ede-630ff1d87b13",
                     "type": "text/javascript",
                     "exec": [
                       "const j = pm.response.json();",
@@ -4540,7 +4540,7 @@
               ]
             },
             {
-              "id": "82c9888d-822a-45c8-b380-22a7b392997c",
+              "id": "7c661ad3-1d7e-44d4-aaf5-ffce83533a06",
               "name": "37 · Ek privacy policy",
               "request": {
                 "method": "GET",
@@ -4570,7 +4570,7 @@
               },
               "response": [
                 {
-                  "id": "158d584e-9382-4a3c-aecc-d1f6407a5100",
+                  "id": "211744ab-fedd-4cf1-93a6-10c9b3aea22d",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "GET",
@@ -4614,7 +4614,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "a76241b1-321b-470e-98ed-4a52a01ca830",
+                    "id": "4eed2e38-b4a3-4d82-b8ce-b9ff0de9b786",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
@@ -4628,16 +4628,16 @@
       ]
     },
     {
-      "id": "76c832aa-4c18-403a-a0bd-712bdad46426",
+      "id": "ceb977c3-a404-4250-b8b5-d4e85fbb3607",
       "name": "2 · Vendor (shop panel)",
       "description": "**Vendor panel ka flow — login se order DELIVERED tak.**\n\nSabse pehle `01 Auth → 01 Vendor login` chalao; token `{{vendorToken}}` aur `{{vendorId}}` save ho jayenge.\n\n**Vendor sirf 2 cheezein kar sakta hai:** apna catalog manage karna, aur `PUT /vendors/me/delivery` se delivery charge ki setting badalna.\nShop name, mobile, address, branches, pincode — **sab admin ke haath me hai**. Panel me wo fields read-only rakho.\n\n⚠️ `isActive` ab **toggle nahi, set** hai (category/subcategory/product teeno me). Purana \"bas field bhej do\" wala code hata dena.",
       "item": [
         {
-          "id": "8f50f762-7752-49ce-8c91-cb256d18b4a2",
+          "id": "0258b8ff-931c-4e71-907d-bf6c730a6fb2",
           "name": "01 Auth",
           "item": [
             {
-              "id": "73e96210-7ba9-4bc7-ab81-7ecb13c2dc25",
+              "id": "1841c0c0-54ab-4575-a78a-76883e1b3f1e",
               "name": "01 · ⭐ Vendor login",
               "request": {
                 "method": "POST",
@@ -4673,7 +4673,7 @@
               },
               "response": [
                 {
-                  "id": "16d0b66b-efc3-458e-b7ac-e581e39a442c",
+                  "id": "60e2f14e-a826-4238-902a-4c0ff7c4c470",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "POST",
@@ -4720,7 +4720,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "cd8576fe-cdc8-469f-a3cd-a4cd667cdba8",
+                    "id": "2e579a85-4767-4aa0-86e2-2456120eae31",
                     "type": "text/javascript",
                     "exec": [
                       "const j = pm.response.json();",
@@ -4746,11 +4746,11 @@
           ]
         },
         {
-          "id": "0a20b606-5282-4ec9-9566-5accfa3af574",
+          "id": "dad69bd0-d70e-45ef-9677-ac4ae4316950",
           "name": "02 Profile & Delivery",
           "item": [
             {
-              "id": "581697cc-e47b-4497-a15a-b66a2fb5e8fb",
+              "id": "73387350-9ddd-4835-b3a9-3cecaecfce1f",
               "name": "02 · 🆕 Meri vendor profile",
               "request": {
                 "method": "GET",
@@ -4776,11 +4776,11 @@
                     "{{vendorId}}"
                   ]
                 },
-                "description": "Vendor ki poori profile — shop details, delivery settings, branches aur service areas ek saath.\n\n🆕 **NEW** — ye endpoint pehle tha hi nahi\n\n**Auth:** `Bearer {{vendorToken}}` — role `vendor`\n\n**Sequence me kab:**\n- Login ke turant baad — dashboard header aur settings screen ka data.\n\n**Zaroori baatein:**\n- Vendor sirf **apni** profile padh sakta hai; kisi aur ka id daala to `403 FORBIDDEN`.\n- `delivery` object ko settings screen pe form me bharo — usi ko `PUT /vendors/me/delivery` se save karna hai.\n- `branches[]` aur `serviceAreas[]` **read-only** hain vendor ke liye — inhe admin manage karta hai. UI me inhe disabled/read-only dikhao aur 'change ke liye admin se sampark karein' likh do.\n- `defaultLocationId` batata hai kaunsi branch se distance naapi jaati hai.\n- `status` `APPROVED` ya `SUSPENDED` hota hai. `SUSPENDED` hone pe vendor ka catalog customers ko dikhna band ho jata hai.\n\n### Enums\n| Field | Allowed values | Matlab |\n|---|---|---|\n| status | `APPROVED` · `SUSPENDED` | Admin control karta hai |\n| branches[].type | `VENDOR_BRANCH` | Vendor branch ka location type |\n\n### Errors\n| HTTP | `code` | Kab aata hai |\n|---|---|---|\n| 403 | `FORBIDDEN` | Ye resource aapka nahi hai. |\n| 404 | — | Resource nahi mila (ya aapke scope me nahi hai). |\n| 401 | — | Token missing / expired / invalid. |"
+                "description": "Vendor ki poori profile — shop details, delivery settings, branches aur service areas ek saath.\n\n🆕 **NEW** — ye endpoint pehle tha hi nahi\n\n**Auth:** `Bearer {{vendorToken}}` — role `vendor`\n\n**Sequence me kab:**\n- Login ke turant baad — dashboard header aur settings screen ka data.\n\n**Zaroori baatein:**\n- Vendor sirf **apni** profile padh sakta hai; kisi aur ka id daala to `403 FORBIDDEN`.\n- `delivery` object ko settings screen pe form me bharo — usi ko `PUT /vendors/me/delivery` se save karna hai.\n- Response me `branches[]` (poore address ke saath) aur `zipcodes[]` + `serviceAreaCount` aate hain — **`serviceAreas[]` naam ka koi array nahi hai**. Har area ki poori detail chahiye to `GET /vendors/:id/service-areas` alag se call karo.\n- Ye dono **read-only** hain vendor ke liye — inhe admin manage karta hai. UI me disabled dikhao aur 'change ke liye admin se sampark karein' likh do.\n- `branchCount` sirf **active** branches ginta hai (soft-deleted nahi). Isliye ye `branches[]` ki length se kam ho sakta hai.\n- `defaultLocationId` batata hai kaunsi branch se distance naapi jaati hai.\n- `status` `APPROVED` ya `SUSPENDED` hota hai. `SUSPENDED` hone pe vendor ka catalog customers ko dikhna band ho jata hai.\n\n### Enums\n| Field | Allowed values | Matlab |\n|---|---|---|\n| status | `APPROVED` · `SUSPENDED` | Admin control karta hai |\n| branches[].type | `VENDOR_BRANCH` | Vendor branch ka location type |\n\n### Errors\n| HTTP | `code` | Kab aata hai |\n|---|---|---|\n| 403 | `FORBIDDEN` | Ye resource aapka nahi hai. |\n| 404 | — | Resource nahi mila (ya aapke scope me nahi hai). |\n| 401 | — | Token missing / expired / invalid. |"
               },
               "response": [
                 {
-                  "id": "0ccbba8f-7213-4fca-b1d3-34750ec1fd98",
+                  "id": "7309eadd-e85c-4841-abb1-5bab20a01a22",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "GET",
@@ -4824,7 +4824,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "1765093f-8add-4c0c-b2de-9dfa6b9fa46f",
+                    "id": "3e63eeaf-48d9-4201-9d83-d25d51408887",
                     "type": "text/javascript",
                     "exec": [
                       "const j = pm.response.json();",
@@ -4843,7 +4843,7 @@
               ]
             },
             {
-              "id": "bd6b7b41-10f6-4d19-a968-9500e3ddb0ea",
+              "id": "df0b7a2d-e0cd-4832-b402-0c04c7ade1f0",
               "name": "03 · 🆕 ⭐ Delivery settings update (vendor ka ekmatra edit right)",
               "request": {
                 "method": "PUT",
@@ -4887,7 +4887,7 @@
               },
               "response": [
                 {
-                  "id": "7e2ea7cb-5af0-47fc-9439-f3cf8ffc2dd2",
+                  "id": "1e66921b-1925-4050-9a17-69b1b038c7fa",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "PUT",
@@ -4945,7 +4945,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "d05a61ea-b2e9-4a3b-ac6c-f643e05d38c3",
+                    "id": "19461b6a-f6d1-4f77-ad35-6f861dc264c4",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
@@ -4955,7 +4955,7 @@
               ]
             },
             {
-              "id": "6e17afc0-34ce-44b9-a387-6df4cce8478c",
+              "id": "d27abe3f-08ed-4f8a-9fa1-5d29b7bfaa93",
               "name": "04 · 🆕 Meri branches (read-only)",
               "request": {
                 "method": "GET",
@@ -4985,7 +4985,7 @@
               },
               "response": [
                 {
-                  "id": "dba4d4e2-8e7e-4495-abb9-e4149e987d9b",
+                  "id": "588e7d2e-5307-4ec3-ae42-fe8e3d02b40e",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "GET",
@@ -5029,7 +5029,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "48416d6a-44a1-4aa7-a39c-2e0254d1cedf",
+                    "id": "5fcacb64-c20b-42c8-bb88-f480e9845588",
                     "type": "text/javascript",
                     "exec": [
                       "const j = pm.response.json();",
@@ -5044,7 +5044,7 @@
               ]
             },
             {
-              "id": "4280777f-c9d5-4a36-8014-8535be7b8dc4",
+              "id": "7946414a-59c0-408e-8fb2-d05b95cc40be",
               "name": "05 · 🆕 Mere service pincodes (read-only)",
               "request": {
                 "method": "GET",
@@ -5100,7 +5100,7 @@
               },
               "response": [
                 {
-                  "id": "440c258f-0a21-4cb5-8f6f-6267f4ef4cec",
+                  "id": "70096b53-fd82-45f7-a364-76ac8f9620a0",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "GET",
@@ -5170,7 +5170,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "a65fcb14-4320-4f57-81c6-2d6cf481647c",
+                    "id": "b305bc18-05e7-4093-92d9-3d29bcf3ffab",
                     "type": "text/javascript",
                     "exec": [
                       "const j = pm.response.json();",
@@ -5189,11 +5189,11 @@
           ]
         },
         {
-          "id": "c42c6f6e-4a47-42c3-83ee-2f80ee8e31af",
+          "id": "f3f55867-700a-47e3-870f-71282c245783",
           "name": "03 Catalog · Categories",
           "item": [
             {
-              "id": "70299850-9241-4d2d-9988-f5ada280626f",
+              "id": "485fc640-941d-4880-a382-11074b21b158",
               "name": "06 · Category banao",
               "request": {
                 "method": "POST",
@@ -5251,7 +5251,7 @@
               },
               "response": [
                 {
-                  "id": "0f2f5cd9-5a42-4978-b500-92ba32080551",
+                  "id": "26370ba4-381d-4e20-98b0-e9bd43db8f46",
                   "name": "201 · Created",
                   "originalRequest": {
                     "method": "POST",
@@ -5323,7 +5323,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "9bc9ed88-a93e-4814-bb7a-f4f0002e010f",
+                    "id": "dc048b96-724b-4d3e-8737-2fe494f5366d",
                     "type": "text/javascript",
                     "exec": [
                       "const j = pm.response.json();",
@@ -5340,7 +5340,7 @@
               ]
             },
             {
-              "id": "73cec1ea-278c-4db1-8172-ef9bda285a86",
+              "id": "de999cc0-c82a-46e6-b21c-5df1b8200977",
               "name": "07 · Meri categories",
               "request": {
                 "method": "GET",
@@ -5407,7 +5407,7 @@
               },
               "response": [
                 {
-                  "id": "c55c0655-dbb7-494a-883e-0d1a11e3c242",
+                  "id": "d10e9663-a35e-4a09-9214-efef064dec8f",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "GET",
@@ -5488,7 +5488,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "b07b5904-3c57-459d-98ad-95521d3fbd41",
+                    "id": "e40e4ad1-2017-4d2c-a7a3-9ea9d59695a4",
                     "type": "text/javascript",
                     "exec": [
                       "const j = pm.response.json();",
@@ -5505,7 +5505,7 @@
               ]
             },
             {
-              "id": "f66665d9-4532-4940-9496-6bc8d75d8d30",
+              "id": "830d7061-eb3b-490c-92a1-1d74af5d3682",
               "name": "08 · Ek category",
               "request": {
                 "method": "GET",
@@ -5535,7 +5535,7 @@
               },
               "response": [
                 {
-                  "id": "b3f694b5-3692-476c-b109-be0bee9a461f",
+                  "id": "9dd70bf2-4c54-4314-b6d8-7a6177279f38",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "GET",
@@ -5579,7 +5579,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "d0c1cfd0-e115-492d-9881-323ded452253",
+                    "id": "51dedb43-2c84-4388-9032-5df51ca11c53",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
@@ -5589,7 +5589,7 @@
               ]
             },
             {
-              "id": "6114f23d-56a5-489c-a35f-52ebead157bc",
+              "id": "f3d63373-4c59-41c1-b84d-58f258ac6fbf",
               "name": "09 · ⚠️ Category update (isActive ab TOGGLE nahi, SET hai)",
               "request": {
                 "method": "PUT",
@@ -5648,7 +5648,7 @@
               },
               "response": [
                 {
-                  "id": "85dae9e9-c9e0-4160-a618-98c03a2018ec",
+                  "id": "756fb7cd-ef33-4e13-9f6c-2aac635d82ed",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "PUT",
@@ -5721,7 +5721,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "3a88e997-1baa-4604-9df8-c74ca6704044",
+                    "id": "7e3cf0e8-8043-474f-a182-5307a6bc10d8",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
@@ -5731,7 +5731,7 @@
               ]
             },
             {
-              "id": "39cfb996-e747-48b0-9ec2-6d19aa4bd1be",
+              "id": "01ba24e2-52c9-46ae-86d5-ba061709dc05",
               "name": "10 · Category delete",
               "request": {
                 "method": "DELETE",
@@ -5761,7 +5761,7 @@
               },
               "response": [
                 {
-                  "id": "027227d3-2751-4164-ad4b-22ff63c0c8eb",
+                  "id": "5e21077d-85a0-4bb4-82ef-e1f77208dc6d",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "DELETE",
@@ -5805,7 +5805,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "6af3a0d6-008b-4647-a55d-121e9eb2b55c",
+                    "id": "309feafb-8b07-4024-98e9-919f203a0edd",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
@@ -5817,11 +5817,11 @@
           ]
         },
         {
-          "id": "27c8760a-093a-4495-8fa0-36fe92c09425",
+          "id": "6a8f9c77-ff13-4ed9-bd12-8089077960e5",
           "name": "04 Catalog · SubCategories",
           "item": [
             {
-              "id": "ae1cc8d4-daca-4b4f-8267-6ed747114885",
+              "id": "47870fcc-bd7e-466d-9092-bc9243e7e672",
               "name": "11 · SubCategory banao",
               "request": {
                 "method": "POST",
@@ -5880,7 +5880,7 @@
               },
               "response": [
                 {
-                  "id": "b96785f5-2187-43fb-b6a4-cab47514d44e",
+                  "id": "f1a34c98-3183-440c-9b71-959517ad6ce3",
                   "name": "201 · Created",
                   "originalRequest": {
                     "method": "POST",
@@ -5953,7 +5953,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "49bb59b9-5b81-4d1f-9474-b6506b95269b",
+                    "id": "49f1fbd3-c536-40ea-a133-a0dc434a61f9",
                     "type": "text/javascript",
                     "exec": [
                       "const j = pm.response.json();",
@@ -5970,7 +5970,7 @@
               ]
             },
             {
-              "id": "53cee14e-f307-4fb7-995d-3ed33713af27",
+              "id": "052fa1d0-e1b8-4679-8c9d-823c46ed3b58",
               "name": "12 · Meri subcategories",
               "request": {
                 "method": "GET",
@@ -6037,7 +6037,7 @@
               },
               "response": [
                 {
-                  "id": "9df2bd91-6546-46ab-ad9f-95c177212737",
+                  "id": "b95a2b96-1229-477d-ad53-7085ac1ca6be",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "GET",
@@ -6118,7 +6118,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "358f4b3b-47a9-4396-9b02-8bce86f892a4",
+                    "id": "3eebfd47-61ef-41e4-acb3-34dc89e07061",
                     "type": "text/javascript",
                     "exec": [
                       "const j = pm.response.json();",
@@ -6135,7 +6135,7 @@
               ]
             },
             {
-              "id": "f3a75f6e-877e-433c-957e-1c7d81e81d83",
+              "id": "c4f52104-c4af-4aea-b89c-dcfbacbaa45b",
               "name": "13 · Ek subcategory",
               "request": {
                 "method": "GET",
@@ -6165,7 +6165,7 @@
               },
               "response": [
                 {
-                  "id": "94ac3028-e9d0-4f24-8ee0-fa70c87f2b54",
+                  "id": "a852f5f1-5e52-4a0c-bfed-3126fa50f817",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "GET",
@@ -6209,7 +6209,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "7c65e02c-4cc7-4f4a-8027-b63f47e26a72",
+                    "id": "cc43286e-8ff8-45ab-a388-ed5c11357a1e",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
@@ -6219,7 +6219,7 @@
               ]
             },
             {
-              "id": "586c4d0c-4c9e-4040-871b-7a95ef9569d0",
+              "id": "c395d395-e6c0-498f-9a9c-359989c02fb4",
               "name": "14 · ⚠️ SubCategory update (isActive ab SET hai)",
               "request": {
                 "method": "PUT",
@@ -6284,7 +6284,7 @@
               },
               "response": [
                 {
-                  "id": "58d127ba-3930-4703-b16f-953f4e50e034",
+                  "id": "dd3b78a0-4beb-4f5d-a569-6b0fe79b206b",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "PUT",
@@ -6363,7 +6363,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "8b6212e1-0bf3-476d-aece-c2462607c779",
+                    "id": "ae188cfb-c429-4eb9-af70-21e451c462fc",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
@@ -6373,7 +6373,7 @@
               ]
             },
             {
-              "id": "ae617244-ab5c-49f1-b68a-086ab8a7863c",
+              "id": "956d7189-2772-4ac6-8fc0-9285ae33b2fd",
               "name": "15 · SubCategory delete",
               "request": {
                 "method": "DELETE",
@@ -6403,7 +6403,7 @@
               },
               "response": [
                 {
-                  "id": "4b5217f2-8cfd-4ab8-8e05-57de2ef8b04c",
+                  "id": "da9c1a9f-3f97-43f5-834f-e7285889e6a5",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "DELETE",
@@ -6447,7 +6447,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "12f2ec55-fac6-464e-859c-f9d681f5966c",
+                    "id": "2f8677ea-50c4-459f-936a-5bc2445c4ba1",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
@@ -6459,11 +6459,11 @@
           ]
         },
         {
-          "id": "dd66256e-8916-4a8c-b328-d80f3bc41df8",
+          "id": "18727935-1d2b-4641-ae93-9ec2df84e89f",
           "name": "05 Catalog · Products",
           "item": [
             {
-              "id": "8bf42d45-6e01-4afc-8984-5a54ee34a634",
+              "id": "7e1c01e9-6fb3-445c-86ea-7aef95ecd88d",
               "name": "16 · Product banao (price + stock yahin)",
               "request": {
                 "method": "POST",
@@ -6557,7 +6557,7 @@
               },
               "response": [
                 {
-                  "id": "30019359-2459-4e00-94ac-c6aaddd01386",
+                  "id": "7bef9e13-eb28-4ffe-a5b2-aa8e5ede6a9e",
                   "name": "201 · Created",
                   "originalRequest": {
                     "method": "POST",
@@ -6665,7 +6665,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "d05ceb6c-4038-4fab-9b9f-258f6404de52",
+                    "id": "295d845d-239e-43cf-984e-748dd9bec9b3",
                     "type": "text/javascript",
                     "exec": [
                       "const j = pm.response.json();",
@@ -6682,7 +6682,7 @@
               ]
             },
             {
-              "id": "ba57366f-a56a-40af-8ab0-4beeba662c5e",
+              "id": "86ac68f5-1e03-4107-b0cf-7ecad8e285cc",
               "name": "17 · Mere products",
               "request": {
                 "method": "GET",
@@ -6767,7 +6767,7 @@
               },
               "response": [
                 {
-                  "id": "172a73b8-c93f-47a3-ab0c-59ebed153963",
+                  "id": "0f061a47-06e5-4144-bf58-01b9baee6177",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "GET",
@@ -6866,7 +6866,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "2f1ce9f8-7233-4e86-a015-0693fbead03b",
+                    "id": "f206eef1-03c2-4916-901b-f9f0872aed01",
                     "type": "text/javascript",
                     "exec": [
                       "const j = pm.response.json();",
@@ -6883,7 +6883,7 @@
               ]
             },
             {
-              "id": "44e59b78-0bb3-4922-8b62-7a8a63da65de",
+              "id": "b7bbee67-d666-4ab4-ae9f-f53c47813602",
               "name": "18 · Ek product",
               "request": {
                 "method": "GET",
@@ -6913,7 +6913,7 @@
               },
               "response": [
                 {
-                  "id": "34ec1586-d5dd-46a3-a1db-b3fcdbacf628",
+                  "id": "9b95b444-2c5b-43cf-854f-7c37ab29bb2e",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "GET",
@@ -6957,7 +6957,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "3ac2f058-d232-4982-8bc7-43067dbfa969",
+                    "id": "abeebc18-17c2-4a86-bd19-9be9cf6f6a02",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
@@ -6967,7 +6967,7 @@
               ]
             },
             {
-              "id": "9b3a4c22-87cb-45b9-a2b3-54f1ff490036",
+              "id": "9881caba-d824-423e-8029-b90882d84b5c",
               "name": "19 · Product update (price / stock badalna)",
               "request": {
                 "method": "PUT",
@@ -7056,7 +7056,7 @@
               },
               "response": [
                 {
-                  "id": "bf3652ea-e942-4a7a-b6d1-c1216e7e38eb",
+                  "id": "fea356fe-f839-40eb-9060-c05b746abf00",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "PUT",
@@ -7159,7 +7159,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "dcbe62fb-000d-41f9-991c-b78e4ec94e97",
+                    "id": "18c868cd-b39c-4b3c-a6e2-3983306f5670",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
@@ -7169,7 +7169,7 @@
               ]
             },
             {
-              "id": "b280c8f6-a1fa-4b3c-83d4-8a59ebd3b230",
+              "id": "ed34a51a-6ddf-4ad4-bd03-fa1a3b4b8af6",
               "name": "20 · Product delete",
               "request": {
                 "method": "DELETE",
@@ -7199,7 +7199,7 @@
               },
               "response": [
                 {
-                  "id": "f39b4ef9-5692-462a-b74b-9711e008df78",
+                  "id": "78c8a391-3819-427b-bad2-4b01b3760822",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "DELETE",
@@ -7243,7 +7243,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "e439ffda-9b0f-4755-bcee-6b8d50dad335",
+                    "id": "12d6628a-cb11-4bb1-bd23-50ff26a269eb",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
@@ -7255,11 +7255,11 @@
           ]
         },
         {
-          "id": "f0df51f6-99d6-4b4a-9a0f-d7d15621e64d",
+          "id": "8b8cfc7f-c037-482b-a741-d4562c99087c",
           "name": "06 Orders",
           "item": [
             {
-              "id": "d615db58-9e83-4b8a-9a2a-53b31765c84f",
+              "id": "2da8decf-ed55-4d73-97a8-77dd09bb9377",
               "name": "21 · 🆕 Dashboard summary",
               "request": {
                 "method": "GET",
@@ -7289,7 +7289,7 @@
               },
               "response": [
                 {
-                  "id": "1eaa34ea-8333-41fa-a9e0-364109b60639",
+                  "id": "8cd028dc-f5dd-4205-aae3-d65ce1765e06",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "GET",
@@ -7333,7 +7333,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "ddcd6d79-1669-4f55-81bd-8832a7142d18",
+                    "id": "b06f8d05-e38c-4d41-8d96-a92087548a0f",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
@@ -7343,7 +7343,7 @@
               ]
             },
             {
-              "id": "4e938c56-21ed-488b-95bb-baff45a019db",
+              "id": "3eea8de1-ee0e-4d23-a63f-3f18316d35b5",
               "name": "22 · Mere orders (order queue)",
               "request": {
                 "method": "GET",
@@ -7433,7 +7433,7 @@
               },
               "response": [
                 {
-                  "id": "aac1a5c2-18d5-4014-b47b-ce864df62c81",
+                  "id": "8c6575d3-2bbf-4f57-9239-69bd289c14ab",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "GET",
@@ -7537,7 +7537,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "0d9b9f7b-3718-4cff-8b6f-ee78891ff51e",
+                    "id": "b7d9fb75-1885-47c6-9c18-2ec14b247c98",
                     "type": "text/javascript",
                     "exec": [
                       "const j = pm.response.json();",
@@ -7554,7 +7554,7 @@
               ]
             },
             {
-              "id": "3aff5eb2-592c-4af9-9197-40be8af412e8",
+              "id": "3457551f-cd4d-4e5c-98bb-54478366809d",
               "name": "23 · Order detail",
               "request": {
                 "method": "GET",
@@ -7584,7 +7584,7 @@
               },
               "response": [
                 {
-                  "id": "4cf4cecf-8ea4-4bf2-988f-3dbd718a5bf0",
+                  "id": "a45d3cd9-0789-49a3-a0f5-6c92446e1051",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "GET",
@@ -7628,7 +7628,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "0af304b9-d2d5-42b5-865b-b5038ed2a9e0",
+                    "id": "b986f10b-07bf-4ef7-a00a-1e7ef3adce0a",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
@@ -7638,7 +7638,7 @@
               ]
             },
             {
-              "id": "3f429acb-4aed-42bb-81e0-19f9ced6eeda",
+              "id": "92d23807-00e3-4b5f-b303-707d6dded857",
               "name": "24 · 🆕 Status → ACCEPTED (order confirm)",
               "request": {
                 "method": "PUT",
@@ -7682,7 +7682,7 @@
               },
               "response": [
                 {
-                  "id": "ab3f12bf-1a9f-44b6-af86-7034d2c3e68a",
+                  "id": "746a6d68-7dbb-4e51-b8da-f851a5c33bae",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "PUT",
@@ -7740,7 +7740,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "105b0133-9f13-4fe0-9de6-e8112750fb02",
+                    "id": "7030d272-2172-4291-a20c-3db12d2320d9",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
@@ -7750,7 +7750,7 @@
               ]
             },
             {
-              "id": "48c508dc-32f8-42c8-828c-5f2e01a2b6ff",
+              "id": "73c609da-3034-4938-9b0d-38159d0e03d2",
               "name": "25 · Status → PACKED",
               "request": {
                 "method": "PUT",
@@ -7794,7 +7794,7 @@
               },
               "response": [
                 {
-                  "id": "7cb1ae2e-55dd-454f-a803-c909f2f49e56",
+                  "id": "81c350c8-77e2-4470-b885-aa7e803f6c1f",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "PUT",
@@ -7852,7 +7852,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "c7414e3f-ac58-40dd-9517-28f1576f2869",
+                    "id": "5fa09b72-2aa6-4333-bd98-d4d0841ff794",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
@@ -7862,7 +7862,7 @@
               ]
             },
             {
-              "id": "80db8db4-4c6d-4d59-ae45-cb0ef94cd9ef",
+              "id": "2227ffd5-cdf7-48fe-bcf2-7af161a4b04f",
               "name": "26 · Status → OUT_FOR_DELIVERY",
               "request": {
                 "method": "PUT",
@@ -7906,7 +7906,7 @@
               },
               "response": [
                 {
-                  "id": "2a105fd6-1d4b-4697-8d51-693280af8982",
+                  "id": "dc1842de-9a77-4090-bb2b-1d0c30707882",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "PUT",
@@ -7964,7 +7964,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "781f991e-3308-4bab-823e-d5351e1751bb",
+                    "id": "85c6dab0-3cb1-4283-b116-a222a05bac0b",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
@@ -7974,7 +7974,7 @@
               ]
             },
             {
-              "id": "a3b26020-662f-4c30-85f4-e37413a8ebee",
+              "id": "8f2cebd8-924e-4e1c-8b5b-8b633bbd6cba",
               "name": "27 · Status → DELIVERED (flow ka aakhri step)",
               "request": {
                 "method": "PUT",
@@ -8018,7 +8018,7 @@
               },
               "response": [
                 {
-                  "id": "d22eff7c-bba9-4395-8d29-719b68f7dfe8",
+                  "id": "49dbd845-7aaa-42f0-90dc-5e7a37f6cf6b",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "PUT",
@@ -8076,7 +8076,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "19bcb904-a274-4021-ad80-2d4a445fc54d",
+                    "id": "5f2c5507-26fd-40f3-9eb8-c670e5cbe350",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
@@ -8086,7 +8086,7 @@
               ]
             },
             {
-              "id": "cbadcf42-1141-48ec-9d20-46a1df2fec6a",
+              "id": "c3b26f1a-3b02-45f4-b8a4-5cae3455ba10",
               "name": "28 · Status → REJECTED (stock wapas)",
               "request": {
                 "method": "PUT",
@@ -8130,7 +8130,7 @@
               },
               "response": [
                 {
-                  "id": "9d0c398b-c559-4754-8d34-bca86b89a8fa",
+                  "id": "25f695df-b270-436d-9cce-da7addea1616",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "PUT",
@@ -8188,7 +8188,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "e619b7a8-b0ca-458f-9251-84a9dcaa0c24",
+                    "id": "c73e3635-8870-49bc-8fed-a7a099a56269",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
@@ -8202,16 +8202,16 @@
       ]
     },
     {
-      "id": "be72d585-f1ac-4ee2-ac83-796a89ca3acd",
+      "id": "1f931ae4-b400-4a2e-9714-017fd0ad3072",
       "name": "3 · Admin (admin panel)",
       "description": "**Admin panel ka flow — vendor onboarding se monitoring tak.**\n\nSabse pehle `01 Auth → 01 Admin login` chalao; token `{{adminToken}}` me save ho jayega.\n\n**Onboarding ka order fix hai:**\n```\nvendor create  →  branch  →  lookup (pincode free hai?)  →  service area assign\n```\nService area assign hone se **pehle** us vendor ka catalog kisi customer ko nahi dikhta.\n\n⚠️ **Admin order ka status nahi badal sakta** — `PUT /orders/update/:id` hata diya gaya hai. Panel me status change ke buttons mat banao.",
       "item": [
         {
-          "id": "16d4c392-e790-467b-b260-6260090e31f6",
+          "id": "bba1e23f-6227-4ad6-8f00-f3184f1f3335",
           "name": "01 Auth",
           "item": [
             {
-              "id": "7495bf67-d297-4b2f-9c05-8f3c1c379f69",
+              "id": "35cb81a0-65e8-43ae-8c51-e3d24fb6ba82",
               "name": "01 · ⭐ Admin login",
               "request": {
                 "method": "POST",
@@ -8247,7 +8247,7 @@
               },
               "response": [
                 {
-                  "id": "be7c03b8-2505-47c2-8c2d-80a5c6ea4b34",
+                  "id": "e43753b9-2618-4763-93c9-2855d4611827",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "POST",
@@ -8294,7 +8294,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "70efed6a-bdb5-4732-8b83-1dcee2ee5cda",
+                    "id": "f7ad0783-9b54-4294-8278-5644f289bac1",
                     "type": "text/javascript",
                     "exec": [
                       "const j = pm.response.json();",
@@ -8318,11 +8318,11 @@
           ]
         },
         {
-          "id": "d12ca76f-efb1-4890-b019-d21fe4e28b61",
+          "id": "9c3039f7-b8c1-4daf-9c97-566617d67bf1",
           "name": "02 Vendor Management",
           "item": [
             {
-              "id": "e1b046fc-e434-45de-b238-3cc2771cc343",
+              "id": "d7c60d23-9aaf-46e4-b436-d25fb3849eba",
               "name": "02 · 🆕 ⭐ Vendor banao (user + profile + pehli branch)",
               "request": {
                 "method": "POST",
@@ -8365,7 +8365,7 @@
               },
               "response": [
                 {
-                  "id": "52a143f8-d4b5-40fa-acc2-8de49aa1bdfa",
+                  "id": "b45e6f55-d2c2-426a-9a54-98525c8f9be7",
                   "name": "201 · Created",
                   "originalRequest": {
                     "method": "POST",
@@ -8422,7 +8422,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "07172bc1-96b1-4524-9739-7b2366c300e1",
+                    "id": "fefdc27c-992b-4fc4-ab3f-23f7efbc0ad0",
                     "type": "text/javascript",
                     "exec": [
                       "const j = pm.response.json();",
@@ -8439,7 +8439,7 @@
               ]
             },
             {
-              "id": "bebf9cd3-d933-4ab9-96ac-50dfa6c8c9ef",
+              "id": "a0566db9-b24a-4cb3-9453-1e20b6e7d2d6",
               "name": "03 · 🆕 Saare vendors",
               "request": {
                 "method": "GET",
@@ -8518,7 +8518,7 @@
               },
               "response": [
                 {
-                  "id": "1d04dc18-9570-4d87-8d47-177256add238",
+                  "id": "1cd9e714-bcf3-4c75-b6a0-70977f77e1a5",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "GET",
@@ -8611,7 +8611,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "ffafab23-c75c-4a84-a393-2875293cd6ac",
+                    "id": "cfdcf97a-80dc-4c8f-acf9-4645faa76382",
                     "type": "text/javascript",
                     "exec": [
                       "const j = pm.response.json();",
@@ -8627,7 +8627,7 @@
               ]
             },
             {
-              "id": "91b932bc-1ab4-4165-990f-4e1569eac1d2",
+              "id": "acd86e1d-cbcb-4384-b5eb-8f6ae0d12d52",
               "name": "04 · 🆕 Vendor ki full detail",
               "request": {
                 "method": "GET",
@@ -8653,11 +8653,11 @@
                     "{{vendorId}}"
                   ]
                 },
-                "description": "Ek vendor ki poori detail — profile, delivery config, branches aur service areas.\n\n🆕 **NEW** — ye endpoint pehle tha hi nahi\n\n**Auth:** `Bearer {{adminToken}}` — role `admin`\n\n**Sequence me kab:**\n- Vendor list se kisi vendor pe click karne pe.\n\n**Zaroori baatein:**\n- Vendor bhi yahi endpoint call karta hai par sirf **apni** id ke liye; doosri id pe `403 FORBIDDEN`. Admin kisi ki bhi dekh sakta hai.\n- `serviceAreas[]` se dikh jata hai vendor kaunse pincodes cover karta hai.\n- `defaultLocationId` = wo branch jisse distance naapi jati hai.\n\n### Errors\n| HTTP | `code` | Kab aata hai |\n|---|---|---|\n| 404 | — | Resource nahi mila (ya aapke scope me nahi hai). |\n| 401 | — | Token missing / expired / invalid. |"
+                "description": "Ek vendor ki poori detail — profile, delivery config, branches aur service areas.\n\n🆕 **NEW** — ye endpoint pehle tha hi nahi\n\n**Auth:** `Bearer {{adminToken}}` — role `admin`\n\n**Sequence me kab:**\n- Vendor list se kisi vendor pe click karne pe.\n\n**Zaroori baatein:**\n- Vendor bhi yahi endpoint call karta hai par sirf **apni** id ke liye; doosri id pe `403 FORBIDDEN`. Admin kisi ki bhi dekh sakta hai.\n- `zipcodes[]` se turant dikh jata hai vendor kaunse pincodes cover karta hai (aur `serviceAreaCount` me ginti). Har area ki poori detail — ETA, minOrderAmount, override — ke liye `GET /vendors/:id/service-areas` call karo.\n- `defaultLocationId` = wo branch jisse distance naapi jati hai.\n\n### Errors\n| HTTP | `code` | Kab aata hai |\n|---|---|---|\n| 404 | — | Resource nahi mila (ya aapke scope me nahi hai). |\n| 401 | — | Token missing / expired / invalid. |"
               },
               "response": [
                 {
-                  "id": "7610a4f2-ef34-4685-a49f-008a3f43049e",
+                  "id": "7fb8d166-e7ce-49f4-9595-273be94b82fa",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "GET",
@@ -8701,7 +8701,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "47395b6a-c239-46c7-82ef-7f0cb0a51412",
+                    "id": "a6dc2112-81db-4da5-9c2c-66dcd9047cc0",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
@@ -8711,7 +8711,7 @@
               ]
             },
             {
-              "id": "2e6cd4ea-16fb-4e98-ad1f-88b5b8a9ad5c",
+              "id": "1e324f91-ef8f-40d0-a226-796571d7f17c",
               "name": "05 · 🆕 Vendor detail update",
               "request": {
                 "method": "PUT",
@@ -8755,7 +8755,7 @@
               },
               "response": [
                 {
-                  "id": "875ec5c5-abfc-4280-bba4-eedccafc64a4",
+                  "id": "b252b7db-0efe-422b-a109-8cf6a7f57b10",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "PUT",
@@ -8813,7 +8813,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "ec54ca74-eb99-43cc-9398-15627d151409",
+                    "id": "5cba155a-505e-47da-99df-f2f3921bd359",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
@@ -8823,7 +8823,7 @@
               ]
             },
             {
-              "id": "1f0b53b1-eafc-4ba9-9a31-073203e41384",
+              "id": "a7265c4d-2cab-4b16-a7bc-cb14f897b94b",
               "name": "06 · 🆕 Vendor suspend / approve",
               "request": {
                 "method": "PUT",
@@ -8867,7 +8867,7 @@
               },
               "response": [
                 {
-                  "id": "cb9ab72f-a4c5-42ed-b94e-fbed3590967c",
+                  "id": "3444bd8b-65a6-4b1b-bd8b-117201a81dbf",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "PUT",
@@ -8925,7 +8925,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "504ca1f0-6f18-4c09-a40f-7b4f805c5f30",
+                    "id": "33f43515-cf26-4815-92d1-049cc1de3fdd",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
@@ -8937,11 +8937,11 @@
           ]
         },
         {
-          "id": "e7c9025e-9649-4aeb-99a2-0121678250d1",
+          "id": "27ed05d7-ceae-42d4-8c55-7ef2ca507237",
           "name": "03 Branches",
           "item": [
             {
-              "id": "bb610196-edcd-4dde-bc8c-70295d4b05ae",
+              "id": "3d4aa32d-947a-47d2-a0be-ba14ef0ab05b",
               "name": "07 · 🆕 Nayi branch add karo",
               "request": {
                 "method": "POST",
@@ -8985,7 +8985,7 @@
               },
               "response": [
                 {
-                  "id": "a66962cb-9fd1-4a29-b292-47649341f116",
+                  "id": "eb2a0d4e-99d3-4c1b-ac1b-22b73f065215",
                   "name": "201 · Created",
                   "originalRequest": {
                     "method": "POST",
@@ -9043,7 +9043,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "2e64c3e4-e7f0-4509-9ad2-9e099b9a6c96",
+                    "id": "3f643c86-f8fc-4c7c-8e53-4c98119cc3cc",
                     "type": "text/javascript",
                     "exec": [
                       "const j = pm.response.json();",
@@ -9060,7 +9060,7 @@
               ]
             },
             {
-              "id": "fb219bbb-ea04-41d6-a040-ecfd1a96d2b1",
+              "id": "8b630a4e-202b-43b4-a396-c3a60564bdf6",
               "name": "08 · 🆕 Vendor ki branches",
               "request": {
                 "method": "GET",
@@ -9090,7 +9090,7 @@
               },
               "response": [
                 {
-                  "id": "3c24d90b-7c69-4eaa-b497-698c03ba14a5",
+                  "id": "2f139e6a-1ca6-48d7-ae5c-f290fdbdaab9",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "GET",
@@ -9134,7 +9134,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "fb3ecabb-95fc-4f74-9773-ffbc25b5f7b9",
+                    "id": "8fdf75bb-5420-4347-846b-1da0da9f05d1",
                     "type": "text/javascript",
                     "exec": [
                       "const j = pm.response.json();",
@@ -9149,7 +9149,7 @@
               ]
             },
             {
-              "id": "fbf324ed-3c0a-474b-969f-30acb268200c",
+              "id": "87fe18df-cedf-4615-ba91-a2d1b9e4b5d9",
               "name": "09 · 🆕 Default branch badlo",
               "request": {
                 "method": "PUT",
@@ -9181,7 +9181,7 @@
               },
               "response": [
                 {
-                  "id": "f4a96609-1814-4508-9428-dc1aa8de040f",
+                  "id": "710f89d4-b70c-4264-a68a-d8818280fcb0",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "PUT",
@@ -9227,7 +9227,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "ab96ed6e-613d-48c3-9e5d-fb4e7aef2226",
+                    "id": "22b37dc3-a6d8-4f5b-b003-d1068ec12b3e",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
@@ -9239,11 +9239,11 @@
           ]
         },
         {
-          "id": "d448143d-bc35-4777-8eb6-1d0bdc8b9edc",
+          "id": "f00c7fac-801e-44ac-af22-a300247daada",
           "name": "04 Service Areas (pincode)",
           "item": [
             {
-              "id": "c6e13814-fc79-4a6e-9026-7f21d51d0689",
+              "id": "ac28f41c-7fe0-471d-bbb4-f4e58a1f61a2",
               "name": "10 · 🆕 ⭐ Pincode kiska hai (assign se PEHLE)",
               "request": {
                 "method": "GET",
@@ -9279,7 +9279,7 @@
               },
               "response": [
                 {
-                  "id": "c71b2325-b3ac-41eb-af5c-f00e7dcc6bf8",
+                  "id": "dbecc219-0202-4c73-8dcd-681e3754ab3e",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "GET",
@@ -9329,7 +9329,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "4855d109-d0d6-4853-b1f6-e0be4e14febc",
+                    "id": "fde2c0fd-b4e8-41dc-b12b-0c3d275b8ed5",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
@@ -9339,7 +9339,7 @@
               ]
             },
             {
-              "id": "611bbe61-f726-4a2a-a895-9495c78ecedf",
+              "id": "01401bf7-c421-431b-8000-1c789f9e73bd",
               "name": "11 · 🆕 ⭐ Pincode assign karo (yahi se customers ko dikhta hai)",
               "request": {
                 "method": "POST",
@@ -9383,7 +9383,7 @@
               },
               "response": [
                 {
-                  "id": "597fcddf-55c7-4b07-a6d5-d6cc362922dc",
+                  "id": "b40a5606-7d38-48cb-8d1d-c59d0728905a",
                   "name": "201 · Created",
                   "originalRequest": {
                     "method": "POST",
@@ -9441,7 +9441,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "749d6952-fafc-43ec-ba1a-19f5c8a134b5",
+                    "id": "a94bbabf-8eb1-43f0-9ba2-4dbd8d6f6801",
                     "type": "text/javascript",
                     "exec": [
                       "const j = pm.response.json();",
@@ -9455,7 +9455,7 @@
               ]
             },
             {
-              "id": "1bcde451-5a8d-4965-aea7-5d8991093b3f",
+              "id": "1989cf50-24d4-4056-adb2-12a9ac10dce1",
               "name": "12 · 🆕 Vendor ke service areas",
               "request": {
                 "method": "GET",
@@ -9511,7 +9511,7 @@
               },
               "response": [
                 {
-                  "id": "763c2b85-5ca2-4821-88d0-8568b0528c20",
+                  "id": "5f0f5a66-b5db-4f96-a400-4f3f861937b9",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "GET",
@@ -9581,7 +9581,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "039c9f33-21ee-4a9b-b2de-0ce3d78bc558",
+                    "id": "ca92d05f-6ddb-4b9e-ade6-1ff1da512b8d",
                     "type": "text/javascript",
                     "exec": [
                       "const j = pm.response.json();",
@@ -9598,7 +9598,7 @@
               ]
             },
             {
-              "id": "faca6367-328c-41af-8eb9-d2558fcee162",
+              "id": "e96014f2-e61e-45e7-905d-f64127aa691f",
               "name": "13 · 🆕 Pincode doosre vendor ko transfer karo",
               "request": {
                 "method": "PUT",
@@ -9641,7 +9641,7 @@
               },
               "response": [
                 {
-                  "id": "a18d8f18-60b5-40a4-8aa3-35b290dab905",
+                  "id": "a78d7775-52fb-4452-b588-bab2446eb6d6",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "PUT",
@@ -9698,7 +9698,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "46f37a85-47a8-447d-a4b8-61fc952d8c48",
+                    "id": "8795c3ca-7ed2-4cb7-a006-049c67ee9f08",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
@@ -9708,7 +9708,7 @@
               ]
             },
             {
-              "id": "0c6f0c58-73ec-4a1b-a03f-ce8594c6088d",
+              "id": "1f408101-2566-4c6b-b43f-3ee3ed446a32",
               "name": "14 · 🆕 Service area hatao",
               "request": {
                 "method": "DELETE",
@@ -9739,7 +9739,7 @@
               },
               "response": [
                 {
-                  "id": "e1c4f82c-8709-4ea0-9014-63bda4c37ab6",
+                  "id": "13f28a0c-9516-4fa2-807e-c7158c5fa103",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "DELETE",
@@ -9784,7 +9784,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "9e2cebb2-0bb1-425f-b668-e3291702f202",
+                    "id": "f7c74e79-e28e-4b0e-92a6-fec0ebb2fe75",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
@@ -9796,11 +9796,11 @@
           ]
         },
         {
-          "id": "33386176-9a55-43ab-b17e-02f3b7cf175c",
+          "id": "d448cb34-4a0c-4c1c-8635-e48c3205f9e5",
           "name": "05 Orders (sirf dekhna)",
           "item": [
             {
-              "id": "0db986ca-62a2-4468-8fd2-34a2e540a69f",
+              "id": "1c3292e7-351a-468e-9333-378e98469050",
               "name": "15 · 🆕 Platform summary",
               "request": {
                 "method": "GET",
@@ -9830,7 +9830,7 @@
               },
               "response": [
                 {
-                  "id": "e3ed66eb-7e25-4358-9410-da2da15a3e77",
+                  "id": "653488a7-0d9c-4b2a-b8ad-e1c4ee1f8bf1",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "GET",
@@ -9874,7 +9874,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "83efcfd3-c55e-4bb5-8979-2b4cdc88d580",
+                    "id": "6fdc09ef-33b1-462a-8501-d18610564b1c",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
@@ -9884,7 +9884,7 @@
               ]
             },
             {
-              "id": "57acf6bd-3819-4f2c-b0a7-56595e23a95f",
+              "id": "c05378ed-d613-4435-840d-ebd50fdf5d50",
               "name": "16 · Saare orders (har vendor ke)",
               "request": {
                 "method": "GET",
@@ -9987,7 +9987,7 @@
               },
               "response": [
                 {
-                  "id": "cb675c08-da88-4ea3-b402-401b833e2390",
+                  "id": "1503cd1f-0543-4b5d-a681-c54d354dc22a",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "GET",
@@ -10104,7 +10104,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "6ac7d833-c256-457d-9122-720f85ea541b",
+                    "id": "ed41162a-174c-4d1b-9ad1-d09a78be4ff9",
                     "type": "text/javascript",
                     "exec": [
                       "const j = pm.response.json();",
@@ -10121,7 +10121,7 @@
               ]
             },
             {
-              "id": "61054353-35c8-461a-a1a4-a3491524e7d8",
+              "id": "9abad457-070c-48c0-bd32-f57eed24b7e2",
               "name": "17 · Order detail (read-only)",
               "request": {
                 "method": "GET",
@@ -10151,7 +10151,7 @@
               },
               "response": [
                 {
-                  "id": "934bb2e2-f4a9-48b8-9f39-76f8566132c7",
+                  "id": "9506b6ec-36fe-45ce-8175-d0e4e29f3806",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "GET",
@@ -10195,7 +10195,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "2bf8c929-dec2-4a2c-ab28-58c9a46dcd0a",
+                    "id": "a9659dbe-16c3-4d4b-bf99-4d622b679378",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
@@ -10207,11 +10207,11 @@
           ]
         },
         {
-          "id": "787a87b9-1f29-426b-a23a-4271bcb9e171",
+          "id": "6f0af06c-4a5d-4d39-8a2d-f34d7012b63b",
           "name": "06 Users",
           "item": [
             {
-              "id": "4a42737d-af2c-4fcd-ad2c-3eefc0321d2b",
+              "id": "b1ff4801-bd24-47ac-a8ef-e97ec555d56d",
               "name": "18 · 🔒 Saare users",
               "request": {
                 "method": "GET",
@@ -10296,7 +10296,7 @@
               },
               "response": [
                 {
-                  "id": "1d06a3d3-8d66-49c5-9f82-a3171bc49d3c",
+                  "id": "13be2439-17bd-427e-bf2b-9aeb2ba01a85",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "GET",
@@ -10395,7 +10395,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "8375f665-6029-4b71-a48e-0246c226ebee",
+                    "id": "cc472850-fb76-40b8-a3a7-e9dfbbed5bbd",
                     "type": "text/javascript",
                     "exec": [
                       "const j = pm.response.json();",
@@ -10412,7 +10412,7 @@
               ]
             },
             {
-              "id": "c21b2d2b-c8eb-4ba8-85fa-d2d71e6b5fc8",
+              "id": "5b4d4ee7-30d8-4a77-97ba-ce1dc96661d6",
               "name": "19 · 🔒 Kisi user ki profile",
               "request": {
                 "method": "GET",
@@ -10448,7 +10448,7 @@
               },
               "response": [
                 {
-                  "id": "d587f9ba-2a0c-4323-8c88-a5e5a5850a5d",
+                  "id": "4ac9c411-e2f5-4cc8-b2b4-4dde9478fb24",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "GET",
@@ -10498,7 +10498,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "c05f9d45-7ec4-4195-8c40-83717a9f928b",
+                    "id": "29c4cf56-3d66-4589-afad-202c155f29dd",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
@@ -10508,7 +10508,7 @@
               ]
             },
             {
-              "id": "ba8d4c16-99c0-4533-a1c0-eec620eb4bfa",
+              "id": "a1808a7c-9bb3-4c3b-bb16-ce9212a6b99a",
               "name": "20 · 🔒 Kisi user ke addresses",
               "request": {
                 "method": "GET",
@@ -10580,7 +10580,7 @@
               },
               "response": [
                 {
-                  "id": "3bcb6603-c24f-4367-a912-9eb0640a85c3",
+                  "id": "0d26fa00-ab25-44ce-a57a-11c30e35b46e",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "GET",
@@ -10666,7 +10666,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "3ab5cc86-a390-4a62-a725-488026a17b50",
+                    "id": "0768ce91-94d4-43d0-b2e3-5f073ef67e58",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
@@ -10678,11 +10678,11 @@
           ]
         },
         {
-          "id": "593c696d-1cae-4406-b2dd-b9dbe7bc0d81",
+          "id": "c9fa7792-8c18-4b98-b30b-ef2dbdbe9bfc",
           "name": "07 Platform Settings",
           "item": [
             {
-              "id": "948a2bf7-3846-40ce-a443-2372c4d2f8f7",
+              "id": "5b2f4c3f-811f-4ced-a37e-3410b3f7b8aa",
               "name": "21 · 🔒 Global settings",
               "request": {
                 "method": "GET",
@@ -10711,7 +10711,7 @@
               },
               "response": [
                 {
-                  "id": "8dfe1e8d-cb43-4b8c-b7d5-95a280e262b3",
+                  "id": "33ceb548-d670-48a7-9ac4-1e3b5d529201",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "GET",
@@ -10754,7 +10754,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "3b7fd262-a0ca-4021-af00-9eb5dab82afb",
+                    "id": "691f3ec1-b652-4be3-9a25-7a9a08077326",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
@@ -10764,7 +10764,7 @@
               ]
             },
             {
-              "id": "d6962d61-4ebc-4db8-9193-45d71d89edea",
+              "id": "8c986a50-5055-4d7b-acee-3aa5d4a2ee27",
               "name": "22 · Global settings update",
               "request": {
                 "method": "PUT",
@@ -10807,7 +10807,7 @@
               },
               "response": [
                 {
-                  "id": "9c9109de-2344-4368-8c8c-7e13cecf7dbf",
+                  "id": "87f89595-37cc-4059-ba2c-5e33af928376",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "PUT",
@@ -10864,7 +10864,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "25d26a5d-6610-464b-8208-47fb71417fe5",
+                    "id": "4a585986-3e0d-44da-a651-82792f361973",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
@@ -10874,7 +10874,7 @@
               ]
             },
             {
-              "id": "1aa72ab4-8ab9-468e-9da4-c0633faa5a75",
+              "id": "87111601-9923-46a8-9380-e5dcc9046514",
               "name": "23 · Settings pehli baar banao",
               "request": {
                 "method": "POST",
@@ -10917,7 +10917,7 @@
               },
               "response": [
                 {
-                  "id": "537fa4a3-ec81-425e-9d57-f42e23f6ef94",
+                  "id": "bf81cdd3-e639-4504-b453-800e9c18e323",
                   "name": "201 · Created",
                   "originalRequest": {
                     "method": "POST",
@@ -10974,7 +10974,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "a57be800-ea59-4b61-adc4-f282fe9db642",
+                    "id": "e3cd416d-bdc8-4d84-8ef9-fdd5074ab4cd",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"201 Created\", () => pm.response.to.have.status(201));"
@@ -10986,11 +10986,11 @@
           ]
         },
         {
-          "id": "2d5d95df-4c7b-4892-8b12-809ba34aec84",
+          "id": "377dfb6f-f15d-4675-9698-e7aa921fe127",
           "name": "08 Content",
           "item": [
             {
-              "id": "6121e38a-b864-4a04-ae2b-c4473720db42",
+              "id": "e935ce1f-19fe-411c-8369-d1b9030622a7",
               "name": "24 · Banner banao",
               "request": {
                 "method": "POST",
@@ -11054,7 +11054,7 @@
               },
               "response": [
                 {
-                  "id": "d959443c-6618-4796-9d83-7293f1e39614",
+                  "id": "28319a3d-0b73-4f78-8a9f-571726802c95",
                   "name": "201 · Created",
                   "originalRequest": {
                     "method": "POST",
@@ -11132,7 +11132,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "5a1a9dba-d17f-4e78-9e79-3f3e3741fe88",
+                    "id": "1368bdc9-6654-493a-8fc0-7199963b7e28",
                     "type": "text/javascript",
                     "exec": [
                       "const j = pm.response.json();",
@@ -11149,7 +11149,7 @@
               ]
             },
             {
-              "id": "26145a1a-5d4a-4eb4-819c-d4eea0ebd252",
+              "id": "09915c92-759d-4e13-bfe1-021a40eb4450",
               "name": "25 · Banner delete",
               "request": {
                 "method": "DELETE",
@@ -11179,7 +11179,7 @@
               },
               "response": [
                 {
-                  "id": "687d614d-a600-4cb3-978d-68394c45aea5",
+                  "id": "0641f43f-2482-44b1-853e-79ed35f4d8b9",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "DELETE",
@@ -11223,7 +11223,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "7ee8e0ef-c243-4442-8dbb-9688cda72384",
+                    "id": "6208fb77-680e-4db2-a881-ddcffaf2f34d",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
@@ -11233,7 +11233,7 @@
               ]
             },
             {
-              "id": "a1caf1a3-da89-448f-ac76-cd16677380ae",
+              "id": "54a4d2a3-d9cd-4a24-895e-9fe14c6fbe00",
               "name": "26 · Terms banao",
               "request": {
                 "method": "POST",
@@ -11276,7 +11276,7 @@
               },
               "response": [
                 {
-                  "id": "c123af15-bce6-4880-813d-ca17d2cb3dbb",
+                  "id": "a3664150-2047-4176-a99b-c5f5e896aaa1",
                   "name": "201 · Created",
                   "originalRequest": {
                     "method": "POST",
@@ -11333,7 +11333,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "e49ce7a0-7979-4d83-8316-7c7fb806d097",
+                    "id": "9cee5a3a-96ad-4e79-9ccf-cb29754e81cc",
                     "type": "text/javascript",
                     "exec": [
                       "const j = pm.response.json();",
@@ -11350,7 +11350,7 @@
               ]
             },
             {
-              "id": "d82cf900-35e9-456d-890d-8bcd720c8774",
+              "id": "d94adb9d-5ded-4f1f-94eb-1efb465b1dc5",
               "name": "27 · Terms update",
               "request": {
                 "method": "PUT",
@@ -11394,7 +11394,7 @@
               },
               "response": [
                 {
-                  "id": "27d70433-75d9-439c-8c12-56d199072214",
+                  "id": "8379ee17-584d-447a-916c-b654ccf11e64",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "PUT",
@@ -11452,7 +11452,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "dde12e1c-83b1-492c-a81b-3fc5ef6f2177",
+                    "id": "12091c57-a2c2-4927-84ed-4062d8226ec4",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
@@ -11462,7 +11462,7 @@
               ]
             },
             {
-              "id": "1daff2b6-1672-4571-a2d8-c6994c8259da",
+              "id": "0a5e029b-c6d1-4825-86f4-4c35337f4864",
               "name": "28 · Terms delete",
               "request": {
                 "method": "DELETE",
@@ -11492,7 +11492,7 @@
               },
               "response": [
                 {
-                  "id": "596fd1ab-1f04-4091-995e-d4ba56af6ced",
+                  "id": "7638dc92-ad7a-4a3a-833f-4019e256c4cb",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "DELETE",
@@ -11536,7 +11536,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "80f7c1b8-10de-41d1-95ee-ab60d47f24d7",
+                    "id": "83bda522-75c3-4e6d-b863-bd45ee8328bb",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
@@ -11546,7 +11546,7 @@
               ]
             },
             {
-              "id": "a3a9bf2c-0fb0-4661-acfe-03fe8f391b73",
+              "id": "56c7a285-39a6-4645-98ea-3c1a52799283",
               "name": "29 · Privacy policy banao",
               "request": {
                 "method": "POST",
@@ -11589,7 +11589,7 @@
               },
               "response": [
                 {
-                  "id": "b2476937-89f1-41b5-99c8-2a0963552113",
+                  "id": "faff8466-ee65-48ea-aabb-0e42e5efd7ed",
                   "name": "201 · Created",
                   "originalRequest": {
                     "method": "POST",
@@ -11646,7 +11646,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "9a9058af-4e40-4e3f-bcaf-e87f2739b250",
+                    "id": "5c366273-b4cb-4bd8-8538-dc42140c3ffb",
                     "type": "text/javascript",
                     "exec": [
                       "const j = pm.response.json();",
@@ -11663,7 +11663,7 @@
               ]
             },
             {
-              "id": "8643d23c-0159-4b29-a988-f17af6ee0632",
+              "id": "a9d830f3-a205-46ed-aeef-668f3898ccbd",
               "name": "30 · Privacy policy update",
               "request": {
                 "method": "PUT",
@@ -11707,7 +11707,7 @@
               },
               "response": [
                 {
-                  "id": "a357bd00-b00b-47bf-933d-3f0390282183",
+                  "id": "9200d5c6-429c-4b4d-a004-76c01941faa0",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "PUT",
@@ -11765,7 +11765,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "fd3e159e-98ca-4b23-b7da-0ea9048a8965",
+                    "id": "d6cca723-512f-4731-a2b1-b2bbe23ae507",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
@@ -11775,7 +11775,7 @@
               ]
             },
             {
-              "id": "f2bedef9-0232-4cb4-8300-2f763dacfc67",
+              "id": "ee31c5de-c157-40ae-b973-a55dd416382b",
               "name": "31 · Privacy policy delete",
               "request": {
                 "method": "DELETE",
@@ -11805,7 +11805,7 @@
               },
               "response": [
                 {
-                  "id": "a73b28ee-747e-4407-a71e-972db915bcaa",
+                  "id": "e25ede82-2160-44c6-8460-f3ed1c0dfb6f",
                   "name": "200 · OK",
                   "originalRequest": {
                     "method": "DELETE",
@@ -11849,7 +11849,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "7f157bae-a415-44ca-a633-a868ff4fee3c",
+                    "id": "1dc394c2-2745-4e37-aa42-4c036006af41",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
@@ -11859,7 +11859,7 @@
               ]
             },
             {
-              "id": "a7eb4d00-7777-4eb5-ac29-cc990dabc8da",
+              "id": "398ceb87-6ea7-4c1f-90bf-e639ae33dcd4",
               "name": "32 · Subscription plan banao",
               "request": {
                 "method": "POST",
@@ -11902,7 +11902,7 @@
               },
               "response": [
                 {
-                  "id": "1c991452-a85a-4517-b595-4f15ca1100bf",
+                  "id": "3bd9cec7-d6f0-48ca-8289-2d71ad8b7e63",
                   "name": "201 · Created",
                   "originalRequest": {
                     "method": "POST",
@@ -11959,7 +11959,7 @@
                 {
                   "listen": "test",
                   "script": {
-                    "id": "0587a1e9-af89-4b71-80bd-25ce1d15062b",
+                    "id": "e1a57df2-9cd7-42f0-97d4-5d218d924b11",
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"201 Created\", () => pm.response.to.have.status(201));"
