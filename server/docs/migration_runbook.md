@@ -192,10 +192,14 @@ drop, carts clear, `productlocations` drop. Wapas jaane ka ek hi rasta —
 > ```
 > Yaani `git pull` pehle, `pm2 start` baad me.
 
+> 🔴 **Server pe DO apps chal rahi hain** — `nvsricemart` (id 0) aur
+> `IFTV-OTT` (id 1). **`pm2 stop all` KABHI mat chalana** — wo doosri app
+> bhi band kar dega. Hamesha naam se:
+
 ```bash
-pm2 list                  # app ka naam dekho
-pm2 stop <app-name>
-pm2 status                # 'stopped' dikhna chahiye
+pm2 list                        # dono dikhengi
+pm2 stop nvsricemart            # ⚠️ sirf yahi, `all` nahi
+pm2 status                      # nvsricemart 'stopped', IFTV-OTT 'online'
 
 # confirm — API band ho gayi
 curl -i https://api.nvsricemart.com/nvs-rice-mart/categories/getAll
@@ -302,11 +306,11 @@ MONGO_URL="<prod-uri>" node scripts/backfillTextCase.js --undo=scripts/.backfill
 
 ### Step 5 — Process start karein
 
-Files pehle hi disk pe hain (Step 2 se pehle `git pull` + `npm ci` ho chuka).
+Files pehle hi disk pe hain (Step 2 se pehle `git pull` ho chuka — **`npm install` ki zaroorat nahi**, neeche §12 dekho).
 Ab bas process chalu:
 
 ```bash
-pm2 restart <app-name> --update-env
+pm2 restart nvsricemart --update-env
 pm2 logs --lines 50        # "MongoDb connection established" dikhna chahiye
 ```
 
@@ -339,10 +343,10 @@ Aur manually:
 ### Rollback (agar kuch bigde)
 
 ```bash
-pm2 stop <app-name>
+pm2 stop nvsricemart
 mongorestore --uri "<prod-uri>" --drop ./dump-YYYYMMDD-HHMM
-git checkout <purana-commit> && npm ci
-pm2 restart <app-name>
+cd /root/NVS-Rice-Mart && git checkout 871d45f
+pm2 restart nvsricemart
 ```
 
 ⚠️ **`cloneDbForRehearsal.js` se rollback NAHI hota** — wo target me "prod"
@@ -725,3 +729,93 @@ aur baad me bilkul same.
 | 3 | **Atlas IP allowlist** me Hostinger ka IP |
 | 4 | Server ka **Node version** (`package.json` me `engines` declared nahi hai) |
 | 5 | `app.use(cors())` sab origins allow karta hai — kaam karega, par baad me allowlist behtar |
+
+---
+
+## 12. Prod server — verified facts (17 Sep 2026)
+
+SSH se khud check kiya gaya. **Kuch band nahi kiya, kuch badla nahi** — sirf
+`mongodump`/`mongorestore` install kiye (additive, koi service nahi chhui).
+
+```
+host            72.62.226.17   (srv1371564)   root
+OS              Ubuntu 24.04.4 LTS  x86_64
+Node            v20.20.0        npm 11.18.0
+git             2.43.0          remote access ✅
+nginx           1.24.0          api.nvsricemart.com → localhost:8000 (Certbot SSL)
+disk            48G, 7% used
+RAM             3.9 GB, 3.2 GB available
+repo            /root/NVS-Rice-Mart   branch `main`   commit 871d45f
+.env            → NvsRiceMart-ProdDB · PORT=8000 · ENABLE_NGROK=false
+                  DISABLE_PUSH set NAHI hai  ← prod pe yahi sahi hai
+firebase key    /root/NVS-Rice-Mart/server/firebaseServiceKeys.json ✅
+mongodump       100.13.0  (17 Sep ko install kiya)
+```
+
+### 🔴 Teen cheezein jo plan badalti hain
+
+**1. Server pe DO apps hain — `pm2 stop all` mat chalana**
+
+```
+id 0  nvsricemart    ← ye band karni hai
+id 1  IFTV-OTT       ← ise haath mat lagana
+```
+Hamesha `pm2 stop nvsricemart` / `pm2 restart nvsricemart`.
+
+**2. `package-lock.json` repo me hai hi nahi → `npm ci` chalega hi nahi**
+
+Aur `package.json` server ke commit (871d45f) se naye main tak **bilkul nahi
+badla** — koi nayi dependency nahi. Isliye:
+
+> **Window me `npm install` / `npm ci` chalane ki zaroorat NAHI hai.**
+> Maujooda `node_modules` naye code ke liye kaafi hai.
+
+Ye behtar bhi hai — lockfile ke bina `npm install` har baar registry se fresh
+resolve karta hai, yaani window ke beech me koi dependency chup-chaap naya
+version utha sakti thi. Ab wo risk hai hi nahi.
+
+**3. `git pull` prod ka `.env` nahi badlega**
+
+`.env` git me tracked hai (alag se theek karne wali baat hai), par uski
+content 871d45f aur naye main me **bilkul same** hai — verify kiya. Pull ke
+baad bhi `MONGO_URL` ProdDB pe hi rahega.
+
+### Node 20 pe naya code chalta hai — test kiya
+
+Repo ki alag copy `/tmp` me clone karke, **server ke apne `node_modules`** se
+(live deployment ko chhue bina):
+
+```
+verify-all (static)        368 pass
+verify-textCase            128 pass
+verify-locations            51 pass
+postman/verify             728 pass
+                          ──────────
+                          1275 pass, 0 fail
+```
+
+Aur asli `index.js` server pe boot karke (Rehearsal2 DB pe, port 8123):
+root `HTTP 200` ✅ · vendor login ✅.
+
+Test ke baad: dono pm2 apps wahi PID pe, uptime 6D, restarts 0 — **kuch nahi
+hila**. Live API bhi chalti rahi. `/tmp/nvs-precheck` aur test dump delete.
+
+### Backup — dono rakhenge
+
+```bash
+# 1 · off-cluster file (cluster hi chala jaye to yahi bachayega)
+cd /root/NVS-Rice-Mart/server
+mongodump --uri "$(grep '^MONGO_URL=' .env | sed 's/^MONGO_URL=//')" \
+          --out /root/backup-$(date +%Y%m%d-%H%M)
+# test dump: 996K, seconds me
+
+# 2 · in-cluster (turant rollback ke liye)
+node scripts/cloneDbForRehearsal.js \
+     --from NvsRiceMart-ProdDB --to NvsRiceMart-Backup-17Sep --apply
+```
+
+⚠️ Backup DB ke naam me **"prod" mat rakhna** — script aise target pe likhne
+se mana kar deti hai (`ProdBackup17Sep` refuse ho jata).
+
+M0 free cluster pe Atlas ka apna koi snapshot nahi hota, aur cluster abhi
+sirf **~10 MB / 512 MB** use kar raha hai — jagah ki koi dikkat nahi.
