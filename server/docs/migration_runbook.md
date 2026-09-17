@@ -185,27 +185,91 @@ drop, carts clear, `productlocations` drop. Wapas jaane ka ek hi rasta —
 
 ### Step 2 — App band karein (maintenance mode)
 
+> 🔑 **"Code deploy" ke DO matlab hain, aur dono ka waqt alag hai:**
+> ```
+> FILES disk pe   →  migration se PEHLE   (migration scripts hi naye code me hain)
+> PROCESS start   →  migration ke BAAD    (warna naya code khali DB pe chalega)
+> ```
+> Yaani `git pull` pehle, `pm2 start` baad me.
+
+```bash
+pm2 list                  # app ka naam dekho
+pm2 stop <app-name>
+pm2 status                # 'stopped' dikhna chahiye
+
+# confirm — API band ho gayi
+curl -i https://api.nvsricemart.com/nvs-rice-mart/categories/getAll
+```
+
+`pm2 stop` ke baad wo khud restart nahi hoga. **Window ke beech me server reboot
+mat karna** — `pm2 startup` laga ho to wo wapas chalu ho jayega.
+
+Aur nginx me maintenance 503 laga do, taaki app ko 502 ka HTML na mile:
+
+```nginx
+location /nvs-rice-mart/ { return 503; }
+error_page 503 @maintenance;
+location @maintenance {
+    default_type application/json;
+    return 503 '{"success":false,"message":"Hum abhi update kar rahe hain. 20 minute me wapas."}';
+}
+```
+```bash
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+⚠️ **Apni dev machine ka `.env` bhi check karo** — kisi aur jagah se prod URI
+connected na ho. Prod live hai: 17 Sep ke audit ke beech me hi ek naya user
+register ho gaya tha (1460 → 1461).
+
 ### Step 3 — Dry run
 ```bash
 MONGO_URL="<prod-uri>" node scripts/migrateToVendorModel.js
 ```
-Numbers check karein — stage pe ye aaye the:
+Numbers check karein — **17 Sep ke prod clone pe ye aaye the**:
 ```
-users              +1 insert,  99 update
-vendorprofiles     +1
-vendorserviceareas +6          (577001–577006)
-locations          143         (241 field-updates, 143 unset)
-categories          17 · subcategories 25 · products 113
-carts              301 · orders 76 · counters +4 · settings 1
-productlocations   DROP 521
+collection            INSERT  UPDATE   UNSET    DROP
+users                      1     103
+vendorprofiles             1
+vendorserviceareas         6                          (577001-577006)
+counters                   4                          (2606/07/08/09)
+locations                        257     147
+categories                        17
+subcategories                     25
+products                         109
+carts                            301
+orders                            82
+settings                           1
+productlocations                                  521  ← poori collection
 ```
+
+Prod live hai, isliye orders/users badhte rehte hain — ye numbers thode
+upar-neeche ho sakte hain. **Shape same hona chahiye**, exact count nahi.
+Kuch bilkul alag dikhe (jaise `locations` me 0, ya `productlocations` me 0)
+to rukein.
 
 ### Step 4 — Apply
 ```bash
 MONGO_URL="<prod-uri>" node scripts/migrateToVendorModel.js --apply
 ```
-Aakhir me **13/13 verify checks pass** hone chahiye. Ek bhi `❌` aaye to
-**rukein**, aage mat badhein.
+Aakhir me **21/21 verify checks pass** hone chahiye — 13 data + 8 index.
+Ek bhi `❌` aaye to **rukein**, aage mat badhein.
+
+```
+✅ 13 data checks
+✅ index users.email_1_role_1              UNIQUE
+✅ index users.mobile_1_role_1             UNIQUE
+✅ index categories.userId_1_name_1        UNIQUE
+✅ index subcategories.categoryId_1_name_1 UNIQUE
+✅ index products.userId_1_SKU_1           UNIQUE
+✅ index orders.orderNumber_1              UNIQUE
+✅ bogus locations.location_2dsphere       drop ho gaya
+✅ bogus locations.geo_2dsphere            drop ho gaya
+```
+
+> Index checks §1.2 wale bug ke liye hain — pehle `createIndex` call to hoti
+> thi par natija check nahi hota tha, aur unique index chup-chaap banta hi
+> nahi tha.
 
 ### Step 4.5 — Text casing backfill (§10)
 
@@ -236,12 +300,35 @@ kiye bina **bilkul wahi** changes wapas ho jate hain:
 MONGO_URL="<prod-uri>" node scripts/backfillTextCase.js --undo=scripts/.backfill-undo-....json
 ```
 
-### Step 5 — Naya code deploy
+### Step 5 — Process start karein
+
+Files pehle hi disk pe hain (Step 2 se pehle `git pull` + `npm ci` ho chuka).
+Ab bas process chalu:
+
+```bash
+pm2 restart <app-name> --update-env
+pm2 logs --lines 50        # "MongoDb connection established" dikhna chahiye
+```
+
+Phir nginx ka maintenance block hatao aur `nginx -t && systemctl reload nginx`.
 
 ### Step 6 — Verify
 ```bash
-MONGO_URL="<prod-uri>" node scripts/verify-generic-shape.js
+MONGO_URL="<prod-uri>" node scripts/verify-generic-shape.js   # read-only
+MONGO_URL="<prod-uri>" node scripts/prodAudit.js              # read-only
 ```
+
+`prodAudit` ab **`STATE: MIGRATED`** dikhayega aur customers ka breakdown
+migration se pehle wale projection se match karna chahiye.
+
+> ⚠️ **`postMigrationSmoke.js` prod pe chalti hi nahi** — hard abort hai, aur
+> wo ek asli order banati hai. Uski jagah prod ka clone bana ke usi pe
+> chalao — prod ko zero risk, poore 75 checks:
+> ```bash
+> node scripts/cloneDbForRehearsal.js --from NvsRiceMart-ProdDB >      --to NvsRiceMart-PostCheck --apply
+> MONGO_URL="<...PostCheck>" DISABLE_PUSH=true node scripts/postMigrationSmoke.js
+> ```
+
 Aur manually:
 - [ ] Vendor login (`nagraj@gmail.com`) → 76 orders, 30 products dikhein
 - [ ] Ek serviceable pincode ka customer → 15 categories dikhein
@@ -250,10 +337,23 @@ Aur manually:
 ### Step 7 — App band se chalu karein
 
 ### Rollback (agar kuch bigde)
+
 ```bash
+pm2 stop <app-name>
 mongorestore --uri "<prod-uri>" --drop ./dump-YYYYMMDD-HHMM
+git checkout <purana-commit> && npm ci
+pm2 restart <app-name>
 ```
-Aur purana code wapas deploy karein.
+
+⚠️ **`cloneDbForRehearsal.js` se rollback NAHI hota** — wo target me "prod"
+dekh ke refuse kar deti hai (jaan-boojh ke). Clone sirf forward copy ke liye
+hai. **Isliye `mongodump` wala backup skip mat karna** — wahi ek rasta hai
+wapas jaane ka.
+
+Sirf casing wapas karni ho (migration rakhni ho) to:
+```bash
+node scripts/backfillTextCase.js --undo=scripts/.backfill-undo-....json
+```
 
 ---
 
@@ -535,3 +635,93 @@ dobara dry run    0 changes ✅ idempotent
 verify-all 368 · textCase 128 · locations 51 · locations-live 78 · catalog-live 29
 stageLoginCheck 11/11
 ```
+
+---
+
+## 11. Prod rehearsal — 17 Sep 2026 (aaj ke prod data pe)
+
+Prod ka **aaj ka** clone bana ke poori migration chain chalayi gayi.
+Ye wo numbers hain jinpe prod run ko match karna chahiye.
+
+### Prod ki position (migration se pehle)
+
+```
+users            1461     customer 1459 · vendor 0 · admin 1
+locations         147     8 vendor branch · 139 customer · 0 pe `type`
+categories         17     15 active  · userId 0/17
+subcategories      25     20 active  · userId 0/25
+products           90     30 active  · userId 0/90
+orders             82     52 DELIVERED · 30 CANCELLED · 0 PENDING
+carts             383     82 purchased · 301 unpurchased (219 me items)
+productlocations  521
+vendorprofiles/vendorserviceareas/counters   0 (khali bani hui)
+
+DB size          0.87 MB · 2731 objects
+```
+
+### Customers pe asar
+
+| Kitne | % | Kya milega |
+|---|---|---|
+| 88 | 6.0% | catalog `200` ✅ |
+| 13 | 0.9% | `404 PINCODE_NOT_SERVICEABLE` |
+| 1355 | 93.1% | `400 PINCODE_REQUIRED` → address screen |
+| 219 | — | cart clear hoga, dobara add karna padega |
+
+Bahar wale pincodes: 577008(3) · 577601(2) · 577007(2) · 834008 · 500774 · 94043
+
+### Vendor ko batane wali cheezein
+
+- `bell` ₹950 → **₹1100** *(confirm ho chuka)*
+- **18 products ka stock kam hoga** (ProductLocation ka minimum liya jata hai):
+  `bell 597→500` · `hamsa 623→512` · `bhanu 522→506` · `keerthi broken rice 515→504` ·
+  `nl ghee rice 508→498` · `mm rice 534→529` · `mbp 504→500` · `kv gold 504→501` ·
+  `krishnaveni 504→502` · `india gate wada kolam 505→502` · `keerthi 505→502` ·
+  `mb jeera raw rice 500→497` · `nl jeera steam rice 5009→5004` · `afreen 502→500` ·
+  `al jeera raw rice 516→515` · `black bullet 643→642` · `royal bullet 566→565` ·
+  `guruji 135→133`
+- Delivery charge `isEnabled: false` rahega → charge ₹0. Toggle vendor khud karega.
+
+### Rehearsal ka result
+
+```
+clone (prod → Rehearsal2)          2731/2731 docs, counts match
+dry run ke baad DB badla?          ZERO DIFF          ← autoIndex:false ka proof
+migration apply                    21/21  (13 data + 8 index)
+backfillTextCase apply             534 docs / 1924 fields + 6 address soft-delete
+backfillTextCase dobara            0 changes          ← idempotent
+cleanupLegacyArtifacts             0 changes
+postMigrationSmoke                 75/75
+verify-generic-shape               31/31
+verify-all (static)               368/368
+verify-textCase / verify-locations 128 / 51
+                                  ──────────────────
+                                   674 checks, 0 fail
+```
+
+Saath me asli `index.js` se server boot karke bhi test kiya (rehearsal DB pe):
+root `200` · vendor login ✅ · `/orders/vendor/summary` ✅ · `/products/getAll`
+30 products, naam ab Title Case me (`Guruji`).
+
+### 🔴 Dry run pehle DB me likhta tha — ab nahi
+
+Mongoose default me har model ke schema-indexes **connect hote hi** bana deta
+hai. Matlab **dry run bhi write karta tha** — prod pe `vendorprofiles`,
+`vendorserviceareas`, `counters` isi wajah se khali bani hui mili (§1.10).
+
+Ab `migrateToVendorModel.js` `{ autoIndex: false }` se connect karti hai.
+Saare indexes STEP 10 me jaan-boojh ke bante hain (`createIndexes()` autoIndex
+se alag cheez hai), isliye kuch chhootta nahi.
+
+**Proof:** clone ka collections+counts+indexes fingerprint dry run se pehle
+aur baad me bilkul same.
+
+### Abhi bhi khula
+
+| # | Cheez |
+|---|---|
+| 1 | **Purane app installs** — force-update (`minAppVersion`) abhi nahi hai. Naya build ready hai; jo update nahi karenge wo naye backend pe tootenge |
+| 2 | **`mongodump` server pe hai ya nahi** — rollback ka ekmatra rasta wahi hai |
+| 3 | **Atlas IP allowlist** me Hostinger ka IP |
+| 4 | Server ka **Node version** (`package.json` me `engines` declared nahi hai) |
+| 5 | `app.use(cors())` sab origins allow karta hai — kaam karega, par baad me allowlist behtar |
