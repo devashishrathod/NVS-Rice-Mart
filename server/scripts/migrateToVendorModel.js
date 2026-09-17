@@ -75,7 +75,12 @@ const record = (coll, op, count) => summary.push({ coll, op, count });
 
 // ═════════════════════════════════════════════════════════════
 const run = async () => {
-  await mongoose.connect(process.env.MONGO_URL);
+  // 🔒 `autoIndex: false` — mongoose default me har model ke schema-indexes
+  //    connect hote hi bana deta hai. Matlab DRY RUN bhi DB me likh deta tha
+  //    (prod pe `vendorprofiles`/`vendorserviceareas`/`counters` isi wajah se
+  //    khali bani hui mili — runbook §1.10). Ab dry run bilkul kuch nahi
+  //    likhta; saare indexes STEP 10 me jaan-boojh ke bante hain.
+  await mongoose.connect(process.env.MONGO_URL, { autoIndex: false });
   const dbName = mongoose.connection.name;
   log(`\n${APPLY ? "🔴 APPLY MODE — DB me likha jayega" : "🔍 DRY RUN — kuch likha nahi jayega"}`);
   log(`   DB: ${dbName}\n`);
@@ -980,6 +985,51 @@ const run = async () => {
       if (!okay) bad++;
       log(`   ${okay ? "✅" : "❌"} ${label.padEnd(36)} ${got} (expected ${want})`);
     });
+
+    // 🔑 Index verification — runbook 1.2 wala bug yahi tha: `createIndex`
+    //    `IndexOptionsConflict` pe throw karta tha, catch use warning bana
+    //    ke aage badh jata tha, aur unique index BANTA HI NAHI tha. Ab
+    //    uska NATIJA bhi check hota hai, sirf attempt nahi.
+    if (!SKIP_INDEXES) {
+      log("");
+      const db2 = mongoose.connection.db;
+      const EXPECTED_UNIQUE = [
+        ["users", "email_1_role_1"],
+        ["users", "mobile_1_role_1"],
+        ["categories", "userId_1_name_1"],
+        ["subcategories", "categoryId_1_name_1"],
+        ["products", "userId_1_SKU_1"],
+        ["orders", "orderNumber_1"],
+      ];
+      for (const [coll, name] of EXPECTED_UNIQUE) {
+        let idx = null;
+        try {
+          idx = (await db2.collection(coll).indexes()).find((i) => i.name === name);
+        } catch {
+          /* collection hi nahi bani */
+        }
+        const okay = !!idx && idx.unique === true;
+        if (!okay) bad++;
+        const state = idx ? (idx.unique ? 'UNIQUE' : 'NON-UNIQUE') : 'MISSING';
+        log(`   ${okay ? "✅" : "❌"} index ${`${coll}.${name}`.padEnd(30)} ${state}`);
+      }
+      const BOGUS_GONE = [
+        ["locations", "location_2dsphere"],
+        ["locations", "geo_2dsphere"],
+      ];
+      for (const [coll, name] of BOGUS_GONE) {
+        let present = false;
+        try {
+          present = (await db2.collection(coll).indexes()).some((i) => i.name === name);
+        } catch {
+          /* ignore */
+        }
+        if (present) bad++;
+        const state = present ? "abhi bhi hai" : "drop ho gaya";
+        log(`   ${present ? "❌" : "✅"} bogus ${`${coll}.${name}`.padEnd(30)} ${state}`);
+      }
+    }
+
     log(bad ? `\n   ⚠️  ${bad} check fail — review karo` : "\n   ✅ saare checks pass");
   }
 
