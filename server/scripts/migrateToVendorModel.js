@@ -858,7 +858,7 @@ const run = async () => {
     }
   }
   log(`   bachega → maxRadiusKm ${setting?.delivery?.maxRadiusKm ?? 50} km + maxAllowedDeliveryCharge ₹200`);
-  log(`   ⚠️  shopLocationId rehne diya (deprecated, koi code nahi padhta)`);
+  log(`   ✓ shopLocationId hata diya — ab vendor ka defaultLocationId use hota hai`);
 
   // ── STEP 10 — Indexes ──────────────────────────────────────
   step(10, "Indexes");
